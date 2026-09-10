@@ -1,45 +1,61 @@
 /**
- * Sample React Native App
- * https://github.com/facebook/react-native
+ * GameLivo — Multi-Game Platform
+ * App.tsx — Root entry point
  *
- * @format
+ * Architecture:
+ *   Redux Provider → ThemeProvider → NavigationContainer → RootNavigator
+ *   Toast & Modal providers mounted globally so any service call works
  */
 
-import { NewAppScreen } from '@react-native/new-app-screen';
-import { StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
-import {
-  SafeAreaProvider,
-  useSafeAreaInsets,
-} from 'react-native-safe-area-context';
+import React, { useEffect } from 'react';
+import { StatusBar } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { Provider, useDispatch } from 'react-redux';
+import { NavigationContainer } from '@react-navigation/native';
 
-function App() {
-  const isDarkMode = useColorScheme() === 'dark';
+import { store, AppDispatch } from './src/redux/store';
+import { ThemeProvider, useTheme } from './src/theme/index';
+import RootNavigator from './src/navigation/RootNavigator';
+
+// ─── Inner App (access to theme + dispatch) ────────────────────────────────
+
+const AppInner: React.FC = () => {
+  const { isDark } = useTheme();
+  const dispatch = useDispatch<AppDispatch>();
+
+  useEffect(() => {
+    // Initialize socket when app loads (after login, socket connects)
+    // socketManager.initialize(dispatch);
+    // return () => socketManager.teardown();
+  }, [dispatch]);
 
   return (
-    <SafeAreaProvider>
-      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
-      <AppContent />
-    </SafeAreaProvider>
-  );
-}
-
-function AppContent() {
-  const safeAreaInsets = useSafeAreaInsets();
-
-  return (
-    <View style={styles.container}>
-      <NewAppScreen
-        templateFileName="App.tsx"
-        safeAreaInsets={safeAreaInsets}
+    <>
+      <StatusBar
+        barStyle={isDark ? 'light-content' : 'dark-content'}
+        backgroundColor="transparent"
+        translucent
       />
-    </View>
+      <NavigationContainer>
+        <RootNavigator />
+      </NavigationContainer>
+      {/* GlobalToast and ModalProvider go here after they are implemented */}
+    </>
   );
-}
+};
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});
+// ─── Root App ──────────────────────────────────────────────────────────────
+
+const App: React.FC = () => {
+  return (
+    <Provider store={store}>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <AppInner />
+        </ThemeProvider>
+      </SafeAreaProvider>
+    </Provider>
+  );
+};
 
 export default App;
