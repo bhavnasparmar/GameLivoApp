@@ -1,3 +1,2 @@
-import React from "react";
-// AppInput component — implement per design spec
-export { default } from "./AppInput";
+export { default, AppInput } from './AppInput';
+export type { AppInputProps } from './AppInput';

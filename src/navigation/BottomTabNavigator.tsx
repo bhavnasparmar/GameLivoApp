@@ -2,37 +2,50 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MainTabParamList } from './types';
 import { ROUTES } from './routes';
+import BottomTabBar from '../components/navigation/BottomTabBar';
 
-// Screen imports — to be implemented
-// import GameHubScreen from '../screens/home/GameHub';
-// import FriendsNavigator from './FriendsNavigator';
-// import ProfileNavigator from './ProfileNavigator';
-// import RewardsNavigator from './RewardsNavigator';
-// import SettingsNavigator from './SettingsNavigator';
+import GameHubScreen from '../screens/home/GameHub';
+import FriendsListScreen from '../screens/friends/FriendsList';
+import RewardsScreen from '../screens/rewards/Rewards';
+import ProfileScreen from '../screens/profile/Profile';
+import SettingsScreen from '../screens/settings/Settings';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
-const BottomTabNavigator: React.FC = () => {
+export const BottomTabNavigator: React.FC = () => {
   return (
     <Tab.Navigator
+      tabBar={props => <BottomTabBar {...props} />}
       screenOptions={{
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: '#102017',
-          borderTopColor: '#294034',
-          height: 64,
-        },
-        tabBarActiveTintColor: '#27AE60',
-        tabBarInactiveTintColor: '#7A9485',
       }}
+      initialRouteName={ROUTES.GAME_HUB as keyof MainTabParamList}
     >
-      {/* Uncomment as screens are implemented:
-      <Tab.Screen name={ROUTES.GAME_HUB} component={GameHubScreen} />
-      <Tab.Screen name={ROUTES.FRIENDS} component={FriendsNavigator} />
-      <Tab.Screen name={ROUTES.PROFILE} component={ProfileNavigator} />
-      <Tab.Screen name={ROUTES.REWARDS} component={RewardsNavigator} />
-      <Tab.Screen name={ROUTES.SETTINGS} component={SettingsNavigator} />
-      */}
+      <Tab.Screen
+        name={ROUTES.GAME_HUB as 'GameHub'}
+        component={GameHubScreen}
+        options={{ title: 'Hub' }}
+      />
+      <Tab.Screen
+        name={ROUTES.FRIENDS as 'Friends'}
+        component={FriendsListScreen}
+        options={{ title: 'Friends' }}
+      />
+      <Tab.Screen
+        name={ROUTES.REWARDS as 'Rewards'}
+        component={RewardsScreen}
+        options={{ title: 'Rewards' }}
+      />
+      <Tab.Screen
+        name={ROUTES.PROFILE as 'Profile'}
+        component={ProfileScreen}
+        options={{ title: 'Profile' }}
+      />
+      <Tab.Screen
+        name={ROUTES.SETTINGS as 'Settings'}
+        component={SettingsScreen}
+        options={{ title: 'Settings' }}
+      />
     </Tab.Navigator>
   );
 };

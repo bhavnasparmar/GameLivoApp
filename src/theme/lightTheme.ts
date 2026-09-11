@@ -15,4 +15,12 @@ export const lightTheme = {
   dimensions: Dimensions_,
 };
 
-export type AppTheme = typeof lightTheme;
+export interface AppTheme {
+  mode: 'light' | 'dark';
+  colors: AppColors;
+  typography: typeof Typography;
+  spacing: typeof Spacing;
+  radius: typeof Radius;
+  shadows: typeof Shadows;
+  dimensions: typeof Dimensions_;
+}

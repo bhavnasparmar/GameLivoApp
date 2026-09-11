@@ -11,7 +11,11 @@ export type RootStackParamList = {
 export type AuthStackParamList = {
   Login: undefined;
   Register: undefined;
-  VerifyOTP: { mobile: string; type: 'register' | 'login' | 'forgot_password' };
+  VerifyOTP: {
+    mobile?: string;
+    email?: string;
+    type: 'register' | 'login' | 'forgot_password';
+  };
   ForgotPassword: undefined;
   ResetPassword: { mobile: string; otp: string };
 };
