@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
+import FastImage from 'react-native-fast-image';
 import LinearGradient from 'react-native-linear-gradient';
 import { ChessColor, ChessPiece } from '../../../../gameEngine/chess/chessTypes';
-import { CHESS_GLYPHS } from '../../../../gameEngine/chess/chessConstants';
+import { CHESS_PIECE_IMAGES } from '../../../../gameEngine/chess/chessConstants';
 
 interface ChessPlayerBarProps {
   name: string;
@@ -33,6 +34,35 @@ export const ChessPlayerBar: React.FC<ChessPlayerBarProps> = React.memo(
     statusText,
   }) => {
     const isWhite = color === 'white';
+    const pulseAnim = useRef(new Animated.Value(0)).current;
+
+    // Continuous smooth turn pulse animation when it is active turn
+    useEffect(() => {
+      let animation: Animated.CompositeAnimation | null = null;
+      if (isCurrentTurn) {
+        animation = Animated.loop(
+          Animated.sequence([
+            Animated.timing(pulseAnim, {
+              toValue: 1,
+              duration: 900,
+              useNativeDriver: true,
+            }),
+            Animated.timing(pulseAnim, {
+              toValue: 0,
+              duration: 900,
+              useNativeDriver: true,
+            }),
+          ]),
+        );
+        animation.start();
+      } else {
+        pulseAnim.setValue(0);
+      }
+
+      return () => {
+        animation?.stop();
+      };
+    }, [isCurrentTurn, pulseAnim]);
 
     const formatTime = (secs: number) => {
       if (secs <= 0) return '00:00';
@@ -48,19 +78,63 @@ export const ChessPlayerBar: React.FC<ChessPlayerBarProps> = React.memo(
         style={[
           styles.container,
           {
-            backgroundColor: isDark ? '#141A16' : '#FFFFFF',
-            borderColor: isCurrentTurn
-              ? '#D4A017'
+            backgroundColor: isCurrentTurn
+              ? isDark
+                ? '#16241B'
+                : '#EAF7EE'
               : isDark
-              ? 'rgba(255,255,255,0.08)'
-              : '#E2EBE5',
+              ? '#0D1410'
+              : '#F7FBF8',
+            borderColor: isCurrentTurn
+              ? '#22C55E'
+              : isDark
+              ? 'rgba(255,255,255,0.06)'
+              : '#E0E8E2',
           },
           isCurrentTurn && styles.activeBarGlow,
         ]}
       >
+        {/* Animated breathing glow border on active turn */}
+        {isCurrentTurn && (
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.activeGlowOverlay,
+              {
+                opacity: pulseAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.35, 0.9],
+                }),
+              },
+            ]}
+          />
+        )}
+
         {/* Left: Avatar & Info */}
         <View style={styles.playerInfoRow}>
           <View style={styles.avatarWrap}>
+            {/* Animated Radar Pulse Ring on Avatar */}
+            {isCurrentTurn && (
+              <Animated.View
+                style={[
+                  styles.avatarPulseRing,
+                  {
+                    opacity: pulseAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.4, 0.85],
+                    }),
+                    transform: [
+                      {
+                        scale: pulseAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [1, 1.14],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              />
+            )}
             <LinearGradient
               colors={
                 isWhite
@@ -80,7 +154,11 @@ export const ChessPlayerBar: React.FC<ChessPlayerBarProps> = React.memo(
                 { backgroundColor: isWhite ? '#FFFFFF' : '#1C1F24' },
               ]}
             >
-              <Text style={{ fontSize: 10 }}>{isWhite ? '♔' : '♚'}</Text>
+              <FastImage
+                source={CHESS_PIECE_IMAGES[color].king}
+                style={styles.kingBadgeImg as any}
+                resizeMode={FastImage.resizeMode.contain}
+              />
             </View>
           </View>
 
@@ -89,7 +167,16 @@ export const ChessPlayerBar: React.FC<ChessPlayerBarProps> = React.memo(
               <Text
                 style={[
                   styles.playerName,
-                  { color: isDark ? '#F1F4F7' : '#1A2318' },
+                  {
+                    color: isCurrentTurn
+                      ? isDark
+                        ? '#FFFFFF'
+                        : '#0B291A'
+                      : isDark
+                      ? '#869A8E'
+                      : '#6B7F74',
+                    fontWeight: isCurrentTurn ? '800' : '600',
+                  },
                 ]}
                 numberOfLines={1}
               >
@@ -102,17 +189,17 @@ export const ChessPlayerBar: React.FC<ChessPlayerBarProps> = React.memo(
 
             {/* Captured Pieces Mini Ribbon */}
             <View style={styles.capturedRow}>
-              {capturedPieces.slice(-6).map((p, idx) => (
-                <Text
-                  key={`cap_${p.id}_${idx}`}
-                  style={[
-                    styles.capturedGlyph,
-                    { color: p.color === 'white' ? '#EEE4C8' : '#687280' },
-                  ]}
-                >
-                  {CHESS_GLYPHS[p.color][p.type]}
-                </Text>
-              ))}
+              {capturedPieces.slice(-6).map((p, idx) => {
+                const img = CHESS_PIECE_IMAGES[p.color]?.[p.type];
+                return img ? (
+                  <FastImage
+                    key={`cap_${p.id}_${idx}`}
+                    source={img}
+                    style={styles.capturedPieceImg as any}
+                    resizeMode={FastImage.resizeMode.contain}
+                  />
+                ) : null;
+              })}
               {materialAdvantage > 0 && (
                 <View style={styles.advantageBadge}>
                   <Text style={styles.advantageText}>+{materialAdvantage}</Text>
@@ -148,18 +235,60 @@ export const ChessPlayerBar: React.FC<ChessPlayerBarProps> = React.memo(
               {formatTime(timeLeftSeconds)}
             </Text>
           </View>
-          {statusText ? (
+          <View
+            style={[
+              styles.turnBadge,
+              {
+                backgroundColor: isCurrentTurn
+                  ? 'rgba(34, 197, 94, 0.18)'
+                  : 'transparent',
+                borderColor: isCurrentTurn
+                  ? 'rgba(34, 197, 94, 0.35)'
+                  : 'transparent',
+              },
+            ]}
+          >
+            {isCurrentTurn && (
+              <View style={styles.dotPulseWrap}>
+                <Animated.View
+                  style={[
+                    styles.turnDotRadar,
+                    {
+                      opacity: pulseAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.7, 0.1],
+                      }),
+                      transform: [
+                        {
+                          scale: pulseAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [1, 2.2],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                />
+                <View style={styles.turnDotActive} />
+              </View>
+            )}
             <Text
               style={[
                 styles.statusSub,
-                { color: isCurrentTurn ? '#5CF27A' : '#7A9485' },
+                {
+                  color: isCurrentTurn
+                    ? '#22C55E'
+                    : isDark
+                    ? '#5C7A6A'
+                    : '#8A9E92',
+                  opacity: statusText ? 1 : isCurrentTurn ? 1 : 0,
+                  fontWeight: isCurrentTurn ? '800' : '600',
+                },
               ]}
             >
-              {statusText}
+              {statusText || (isCurrentTurn ? 'TURN' : '')}
             </Text>
-          ) : isCurrentTurn ? (
-            <Text style={[styles.statusSub, { color: '#5CF27A' }]}>● Turn</Text>
-          ) : null}
+          </View>
         </View>
       </View>
     );
@@ -172,11 +301,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 12,
-    paddingVertical: 9,
+    height: 60,
     borderRadius: 14,
     borderWidth: 1.5,
     marginHorizontal: 14,
-    marginVertical: 5,
+    marginVertical: 4,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
@@ -184,11 +313,21 @@ const styles = StyleSheet.create({
     elevation: 4,
   },
   activeBarGlow: {
-    borderColor: '#D4A017',
-    shadowColor: '#D4A017',
-    shadowOpacity: 0.45,
+    borderColor: '#22C55E',
+    shadowColor: '#22C55E',
+    shadowOpacity: 0.55,
     shadowRadius: 10,
-    elevation: 6,
+    elevation: 8,
+  },
+  activeGlowOverlay: {
+    position: 'absolute',
+    top: -2,
+    bottom: -2,
+    left: -2,
+    right: -2,
+    borderRadius: 15,
+    borderWidth: 2,
+    borderColor: '#22C55E',
   },
   playerInfoRow: {
     flexDirection: 'row',
@@ -200,6 +339,16 @@ const styles = StyleSheet.create({
     position: 'relative',
     marginRight: 10,
   },
+  avatarPulseRing: {
+    position: 'absolute',
+    top: -4,
+    bottom: -4,
+    left: -4,
+    right: -4,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#22C55E',
+  },
   avatar: {
     width: 42,
     height: 42,
@@ -210,8 +359,8 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.2)',
   },
   activeAvatarGlow: {
-    borderColor: '#F0C64A',
-    shadowColor: '#F0C64A',
+    borderColor: '#22C55E',
+    shadowColor: '#22C55E',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.9,
     shadowRadius: 6,
@@ -233,6 +382,15 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#141A16',
   },
+  kingBadgeImg: {
+    width: 13,
+    height: 13,
+  },
+  capturedPieceImg: {
+    width: 16,
+    height: 16,
+    marginHorizontal: 0.5,
+  },
   nameBlock: {
     flex: 1,
   },
@@ -243,7 +401,6 @@ const styles = StyleSheet.create({
   },
   playerName: {
     fontSize: 14,
-    fontWeight: '700',
     maxWidth: 110,
   },
   ratingBadge: {
@@ -288,18 +445,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 11,
-    paddingVertical: 5,
+    paddingVertical: 4,
     borderRadius: 18,
     borderWidth: 1.5,
     gap: 5,
   },
   timerPillActive: {
-    backgroundColor: 'rgba(212, 160, 23, 0.2)',
-    borderColor: '#F0C64A',
+    backgroundColor: 'rgba(34, 197, 94, 0.18)',
+    borderColor: '#22C55E',
   },
   timerPillInactive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.06)',
-    borderColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+    borderColor: 'rgba(255, 255, 255, 0.08)',
   },
   timerPillLowTime: {
     backgroundColor: 'rgba(230, 72, 58, 0.25)',
@@ -309,23 +466,52 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   timerText: {
-    fontSize: 15,
+    fontSize: 14.5,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
   },
   timerTextActive: {
-    color: '#F0C64A',
+    color: '#22C55E',
   },
   timerTextInactive: {
-    color: '#96A1AD',
+    color: '#869A8E',
   },
   timerTextLowTime: {
     color: '#FF6A5C',
   },
+  turnBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+    marginTop: 2,
+    gap: 4,
+    borderWidth: 0.8,
+  },
+  dotPulseWrap: {
+    position: 'relative',
+    width: 10,
+    height: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  turnDotRadar: {
+    position: 'absolute',
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#22C55E',
+  },
+  turnDotActive: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#22C55E',
+  },
   statusSub: {
     fontSize: 10,
-    fontWeight: '700',
-    marginTop: 2,
+    letterSpacing: 0.5,
   },
 });
 

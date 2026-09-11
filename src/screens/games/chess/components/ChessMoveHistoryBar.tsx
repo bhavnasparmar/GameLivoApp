@@ -17,7 +17,7 @@ export const ChessMoveHistoryBar: React.FC<ChessMoveHistoryBarProps> = React.mem
       }
     }, [moves.length]);
 
-    if (moves.length === 0) return null;
+    const hasMoves = moves.length > 0;
 
     // Group moves into turns (pairs of White and Black moves)
     const turnPairs: { turnNum: number; white?: string; black?: string }[] = [];
@@ -43,36 +43,42 @@ export const ChessMoveHistoryBar: React.FC<ChessMoveHistoryBarProps> = React.mem
         <Text style={[styles.historyLabel, { color: isDark ? '#7A9485' : '#5C7A6A' }]}>
           MOVES:
         </Text>
-        <ScrollView
-          ref={scrollRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-        >
-          {turnPairs.map((pair) => (
-            <View key={`turn_${pair.turnNum}`} style={styles.turnBlock}>
-              <Text style={styles.turnNumText}>{pair.turnNum}.</Text>
-              <Text
-                style={[
-                  styles.moveWhite,
-                  { color: isDark ? '#F1F4F7' : '#1A2318' },
-                ]}
-              >
-                {pair.white}
-              </Text>
-              {pair.black && (
+        {hasMoves ? (
+          <ScrollView
+            ref={scrollRef}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+          >
+            {turnPairs.map((pair) => (
+              <View key={`turn_${pair.turnNum}`} style={styles.turnBlock}>
+                <Text style={styles.turnNumText}>{pair.turnNum}.</Text>
                 <Text
                   style={[
-                    styles.moveBlack,
-                    { color: isDark ? '#B4C5BB' : '#45594E' },
+                    styles.moveWhite,
+                    { color: isDark ? '#F1F4F7' : '#1A2318' },
                   ]}
                 >
-                  {pair.black}
+                  {pair.white}
                 </Text>
-              )}
-            </View>
-          ))}
-        </ScrollView>
+                {pair.black && (
+                  <Text
+                    style={[
+                      styles.moveBlack,
+                      { color: isDark ? '#B4C5BB' : '#45594E' },
+                    ]}
+                  >
+                    {pair.black}
+                  </Text>
+                )}
+              </View>
+            ))}
+          </ScrollView>
+        ) : (
+          <Text style={[styles.placeholderText, { color: isDark ? '#5C7A6A' : '#8A9E92' }]}>
+            Match ready · White moves first
+          </Text>
+        )}
       </View>
     );
   },
@@ -83,7 +89,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    height: 32,
     marginHorizontal: 14,
     marginBottom: 6,
     borderRadius: 10,
@@ -94,6 +100,11 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.5,
     marginRight: 8,
+  },
+  placeholderText: {
+    fontSize: 11,
+    fontWeight: '600',
+    fontStyle: 'italic',
   },
   scrollContent: {
     flexDirection: 'row',

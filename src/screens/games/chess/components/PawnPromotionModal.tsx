@@ -1,8 +1,9 @@
 import React from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity } from 'react-native';
+import FastImage from 'react-native-fast-image';
 import LinearGradient from 'react-native-linear-gradient';
 import { ChessColor, ChessPieceType } from '../../../../gameEngine/chess/chessTypes';
-import { CHESS_GLYPHS } from '../../../../gameEngine/chess/chessConstants';
+import { CHESS_PIECE_IMAGES } from '../../../../gameEngine/chess/chessConstants';
 
 interface PawnPromotionModalProps {
   visible: boolean;
@@ -36,7 +37,7 @@ export const PawnPromotionModal: React.FC<PawnPromotionModalProps> = ({
 
             <View style={styles.optionsRow}>
               {PROMO_OPTIONS.map((opt) => {
-                const glyph = CHESS_GLYPHS[color][opt.type];
+                const pieceImage = CHESS_PIECE_IMAGES[color]?.[opt.type];
                 return (
                   <TouchableOpacity
                     key={opt.type}
@@ -48,7 +49,13 @@ export const PawnPromotionModal: React.FC<PawnPromotionModalProps> = ({
                       colors={['#2A362D', '#1B241E', '#101612']}
                       style={styles.cardGradient}
                     >
-                      <Text style={styles.glyphText}>{glyph}</Text>
+                      {pieceImage ? (
+                        <FastImage
+                          source={pieceImage}
+                          style={styles.promoPieceImg as any}
+                          resizeMode={FastImage.resizeMode.contain}
+                        />
+                      ) : null}
                       <Text style={styles.label}>{opt.label}</Text>
                       <View style={styles.pointsBadge}>
                         <Text style={styles.pointsText}>{opt.points}</Text>
@@ -123,6 +130,10 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 4,
     alignItems: 'center',
+  },
+  promoPieceImg: {
+    width: 44,
+    height: 44,
   },
   glyphText: {
     fontSize: 32,

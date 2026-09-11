@@ -12,7 +12,27 @@ export const PIECE_VALUES: Record<ChessPieceType, number> = {
   king: 1000,
 };
 
-// High-fidelity Unicode glyphs for crisp fallback rendering
+// Transparent PNG image assets for all chess pieces without background
+export const CHESS_PIECE_IMAGES = {
+  white: {
+    king: require('../../assets/images/games/chess/wK.png'),
+    queen: require('../../assets/images/games/chess/wQ.png'),
+    rook: require('../../assets/images/games/chess/wR.png'),
+    bishop: require('../../assets/images/games/chess/wB.png'),
+    knight: require('../../assets/images/games/chess/wN.png'),
+    pawn: require('../../assets/images/games/chess/wP.png'),
+  },
+  black: {
+    king: require('../../assets/images/games/chess/bK.png'),
+    queen: require('../../assets/images/games/chess/bQ.png'),
+    rook: require('../../assets/images/games/chess/bR.png'),
+    bishop: require('../../assets/images/games/chess/bB.png'),
+    knight: require('../../assets/images/games/chess/bN.png'),
+    pawn: require('../../assets/images/games/chess/bP.png'),
+  },
+} as const;
+
+// Unicode glyphs fallback
 export const CHESS_GLYPHS = {
   white: {
     king: '♔',
