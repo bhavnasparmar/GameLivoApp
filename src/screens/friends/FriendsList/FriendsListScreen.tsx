@@ -44,7 +44,7 @@ const MOCK_REQUESTS: FriendRequest[] = [
 ];
 
 // ─── Tab types ────────────────────────────────────────────────────────────────
-type TabKey = 'all' | 'requests' | 'find';
+type TabKey = 'friends' | 'requests' | 'suggestions';
 
 // ─── Helper: get avatar initials ─────────────────────────────────────────────
 const getInitials = (name: string): string =>
@@ -80,19 +80,20 @@ interface FriendRowProps {
 }
 
 const FriendRow: React.FC<FriendRowProps> = ({ friend, onRemove, onInvite, isDark }) => {
-  const gradColors = getAvatarGradient(friend.id);
+  const friendName = friend.name || friend.username || 'Friend';
+  const gradColors = getAvatarGradient(friend.id || 'f');
   return (
     <View style={[styles.friendRow, { backgroundColor: isDark ? '#131A10' : '#FFFFFF', borderColor: isDark ? 'rgba(255,255,255,0.06)' : '#EAF0EB' }]}>
       <View style={styles.avatarWrap}>
         <LinearGradient colors={gradColors} style={styles.avatar}>
-          <Text style={styles.avatarText}>{getInitials(friend.name)}</Text>
+          <Text style={styles.avatarText}>{getInitials(friendName)}</Text>
         </LinearGradient>
         {friend.isOnline && <View style={[styles.onlineBadge, { borderColor: isDark ? '#131A10' : '#FFFFFF' }]} />}
       </View>
 
       <View style={styles.friendInfo}>
         <Text style={[styles.friendName, { color: isDark ? '#F1F4F7' : '#1A2318' }]} numberOfLines={1}>
-          {friend.name}
+          {friendName}
         </Text>
         <Text style={[styles.friendSub, { color: isDark ? '#7A9485' : '#5C7A6A' }]} numberOfLines={1}>
           {friend.isOnline
@@ -100,8 +101,8 @@ const FriendRow: React.FC<FriendRowProps> = ({ friend, onRemove, onInvite, isDar
             : `Offline · ${friend.lastSeen || 'a while ago'}`}
         </Text>
         <View style={styles.statRow}>
-          <Text style={styles.levelBadge}>Lv.{friend.level}</Text>
-          <Text style={[styles.rankBadge, { color: isDark ? '#96A1AD' : '#6B7A70' }]}>#{friend.rank}</Text>
+          <Text style={styles.levelBadge}>Lv.{friend.level || 1}</Text>
+          <Text style={[styles.rankBadge, { color: isDark ? '#96A1AD' : '#6B7A70' }]}>#{friend.rank || 1}</Text>
         </View>
       </View>
 
@@ -110,7 +111,7 @@ const FriendRow: React.FC<FriendRowProps> = ({ friend, onRemove, onInvite, isDar
           <TouchableOpacity
             activeOpacity={0.8}
             style={styles.inviteBtn}
-            onPress={() => onInvite(friend.id, friend.name)}
+            onPress={() => onInvite(friend.id, friendName)}
           >
             <LinearGradient colors={['#1F9D55', '#0D5230']} style={styles.inviteBtnGradient}>
               <Text style={styles.inviteBtnText}>Invite</Text>
@@ -120,7 +121,7 @@ const FriendRow: React.FC<FriendRowProps> = ({ friend, onRemove, onInvite, isDar
           <TouchableOpacity
             activeOpacity={0.8}
             style={[styles.messageBtn, { backgroundColor: isDark ? '#1E2A24' : '#EDF5F0', borderColor: isDark ? 'rgba(255,255,255,0.08)' : '#C8DDD0' }]}
-            onPress={() => onRemove(friend.id, friend.name)}
+            onPress={() => onRemove(friend.id, friendName)}
           >
             <Text style={[styles.messageBtnText, { color: isDark ? '#7A9485' : '#5C7A6A' }]}>Remove</Text>
           </TouchableOpacity>
@@ -139,19 +140,35 @@ interface RequestRowProps {
 }
 
 const RequestRow: React.FC<RequestRowProps> = ({ request, onAccept, onDecline, isDark, accepting }) => {
-  const gradColors = getAvatarGradient(request.id);
+  const reqId = request.requestId || request.id || (request as any)._id || '';
+  const senderName =
+    request.name ||
+    (request as any).sender?.name ||
+    (request as any).sender?.username ||
+    request.username ||
+    'Player';
+  const senderUsername =
+    request.username ||
+    (request as any).sender?.username ||
+    senderName;
+  const senderLevel =
+    typeof request.level === 'number'
+      ? request.level
+      : ((request as any).sender?.level ?? 1);
+  const gradColors = getAvatarGradient(reqId || 'r');
+
   return (
     <View style={[styles.friendRow, { backgroundColor: isDark ? '#131A10' : '#FFFFFF', borderColor: isDark ? 'rgba(255,255,255,0.06)' : '#EAF0EB' }]}>
       <LinearGradient colors={gradColors} style={styles.avatar}>
-        <Text style={styles.avatarText}>{getInitials(request.name)}</Text>
+        <Text style={styles.avatarText}>{getInitials(senderName)}</Text>
       </LinearGradient>
 
       <View style={[styles.friendInfo, { flex: 1 }]}>
         <Text style={[styles.friendName, { color: isDark ? '#F1F4F7' : '#1A2318' }]} numberOfLines={1}>
-          {request.name}
+          {senderName}
         </Text>
         <Text style={[styles.friendSub, { color: isDark ? '#7A9485' : '#5C7A6A' }]}>
-          @{request.username} · Lv.{request.level}
+          @{senderUsername} · Lv.{senderLevel}
         </Text>
         {(request.mutualFriends || 0) > 0 && (
           <Text style={styles.mutualText}>👥 {request.mutualFriends} mutual friends</Text>
@@ -162,7 +179,7 @@ const RequestRow: React.FC<RequestRowProps> = ({ request, onAccept, onDecline, i
         <TouchableOpacity
           activeOpacity={0.8}
           style={styles.acceptBtn}
-          onPress={() => onAccept(request.requestId)}
+          onPress={() => onAccept(reqId)}
           disabled={accepting}
         >
           {accepting ? (
@@ -176,7 +193,8 @@ const RequestRow: React.FC<RequestRowProps> = ({ request, onAccept, onDecline, i
         <TouchableOpacity
           activeOpacity={0.8}
           style={[styles.declineBtn, { backgroundColor: isDark ? '#1E2A24' : '#F5F5F5', borderColor: isDark ? 'rgba(255,255,255,0.08)' : '#DDD' }]}
-          onPress={() => onDecline(request.requestId)}
+          onPress={() => onDecline(reqId)}
+          disabled={accepting}
         >
           <Text style={[styles.declineBtnText, { color: isDark ? '#96A1AD' : '#6B6154' }]}>✕</Text>
         </TouchableOpacity>
@@ -190,29 +208,32 @@ interface SearchResultRowProps {
   onAdd: (userId: string, name: string) => void;
   isDark: boolean;
   adding: boolean;
+  isFriend?: boolean;
 }
 
-const SearchResultRow: React.FC<SearchResultRowProps> = ({ user, onAdd, isDark, adding }) => {
-  const gradColors = getAvatarGradient(user.id);
+const SearchResultRow: React.FC<SearchResultRowProps> = ({ user, onAdd, isDark, adding, isFriend }) => {
+  const gradColors = getAvatarGradient(user.id || 'u');
+  const displayName = user.name || user.username || 'Player';
+  const isAlreadyFriend = isFriend !== undefined ? isFriend : Boolean(user.isFriend);
   return (
     <View style={[styles.friendRow, { backgroundColor: isDark ? '#131A10' : '#FFFFFF', borderColor: isDark ? 'rgba(255,255,255,0.06)' : '#EAF0EB' }]}>
       <LinearGradient colors={gradColors} style={styles.avatar}>
-        <Text style={styles.avatarText}>{getInitials(user.name)}</Text>
+        <Text style={styles.avatarText}>{getInitials(displayName)}</Text>
       </LinearGradient>
 
       <View style={[styles.friendInfo, { flex: 1 }]}>
         <Text style={[styles.friendName, { color: isDark ? '#F1F4F7' : '#1A2318' }]} numberOfLines={1}>
-          {user.name}
+          {displayName}
         </Text>
         <Text style={[styles.friendSub, { color: isDark ? '#7A9485' : '#5C7A6A' }]}>
-          @{user.username} · Lv.{user.level}
+          @{user.username} · Lv.{user.level || 1}
         </Text>
         {(user.mutualFriends || 0) > 0 && (
           <Text style={styles.mutualText}>👥 {user.mutualFriends} mutual</Text>
         )}
       </View>
 
-      {user.isFriend ? (
+      {isAlreadyFriend ? (
         <View style={[styles.alreadyFriendBadge, { backgroundColor: isDark ? '#1A2D22' : '#E6F7EE' }]}>
           <Text style={styles.alreadyFriendText}>Friends</Text>
         </View>
@@ -223,7 +244,7 @@ const SearchResultRow: React.FC<SearchResultRowProps> = ({ user, onAdd, isDark, 
       ) : (
         <TouchableOpacity
           activeOpacity={0.8}
-          onPress={() => onAdd(user.id, user.name)}
+          onPress={() => onAdd(user.id, displayName)}
           disabled={adding}
           style={styles.addBtnWrap}
         >
@@ -246,9 +267,10 @@ export const FriendsListScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const { theme, isDark } = useTheme();
 
-  const [activeTab, setActiveTab] = useState<TabKey>('all');
-  const [friends, setFriends] = useState<Friend[]>(MOCK_FRIENDS);
-  const [requests, setRequests] = useState<FriendRequest[]>(MOCK_REQUESTS);
+  const [activeTab, setActiveTab] = useState<TabKey>('friends');
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [requests, setRequests] = useState<FriendRequest[]>([]);
+  const [suggestions, setSuggestions] = useState<SearchedUser[]>([]);
   const [searchResults, setSearchResults] = useState<SearchedUser[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -269,14 +291,59 @@ export const FriendsListScreen: React.FC = () => {
   // ─── Data Loading ──────────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     try {
-      const [friendsList, requestsList] = await Promise.all([
+      const [friendsList, requestsList, suggestionsList] = await Promise.all([
         friendsService.getFriends().catch(() => null),
         friendsService.getFriendRequests().catch(() => null),
+        friendsService.getSuggestions().catch(() => null),
       ]);
-      if (friendsList) setFriends(friendsList);
-      if (requestsList) setRequests(requestsList);
+      let currentFriendIds: string[] = [];
+      if (Array.isArray(friendsList)) {
+        const normalizedFriends = friendsList.map((f: any) => ({
+          id: f.id || '',
+          name: f.name || f.username || 'Friend',
+          username: f.username || f.name || '',
+          avatar: f.avatar || '',
+          level: typeof f.level === 'number' ? f.level : 1,
+          rank: typeof f.rank === 'number' ? f.rank : 1,
+          isOnline: !!f.isOnline,
+          currentActivity: f.currentActivity || (f.isOnline ? 'Online' : 'Offline'),
+          lastSeen: f.lastSeen || '',
+        }));
+        setFriends(normalizedFriends);
+        currentFriendIds = normalizedFriends.map(f => f.id);
+      }
+      if (Array.isArray(requestsList)) {
+        setRequests(requestsList.map((r: any) => ({
+          id: r.id || r.requestId || '',
+          requestId: r.requestId || r.id || '',
+          name: r.name || r.sender?.name || r.sender?.username || 'Player',
+          username: r.username || r.sender?.username || r.name || 'player',
+          avatar: r.avatar || r.sender?.avatar || '',
+          level: typeof r.level === 'number' ? r.level : (r.sender?.level || 1),
+          mutualFriends: r.mutualFriends || 0,
+          sentAt: r.sentAt || r.createdAt || new Date().toISOString(),
+          direction: (r.direction || 'incoming') as 'incoming' | 'outgoing',
+        })));
+      }
+      if (Array.isArray(suggestionsList)) {
+        setSuggestions(
+          suggestionsList
+            .filter((s: any) => !s.isFriend && !currentFriendIds.includes(s.id))
+            .map((s: any) => ({
+              id: s.id || '',
+              name: s.name || s.username || 'Player',
+              username: s.username || s.name || '',
+              avatar: s.avatar || '',
+              level: typeof s.level === 'number' ? s.level : 1,
+              rank: typeof s.rank === 'number' ? s.rank : 1,
+              mutualFriends: s.mutualFriends || 0,
+              isFriend: false,
+              hasPendingRequest: !!s.hasPendingRequest,
+            }))
+        );
+      }
     } catch {
-      // Keep mock data on error
+      // Keep state on error
     }
   }, []);
 
@@ -300,8 +367,8 @@ export const FriendsListScreen: React.FC = () => {
       useNativeDriver: true,
     }).start();
 
-    if (tab === 'find') {
-      setAutoFocusSearch(true);
+    if (tab === 'suggestions') {
+      setAutoFocusSearch(false);
     } else {
       setAutoFocusSearch(false);
       setSearchQuery('');
@@ -332,16 +399,11 @@ export const FriendsListScreen: React.FC = () => {
     setAcceptingId(requestId);
     try {
       await friendsService.acceptFriendRequest(requestId);
-      const accepted = requests.find(r => r.requestId === requestId);
-      if (accepted) {
-        setFriends(prev => [
-          { id: accepted.id, name: accepted.name, username: accepted.username, level: accepted.level, rank: 999, isOnline: false },
-          ...prev,
-        ]);
-        setRequests(prev => prev.filter(r => r.requestId !== requestId));
-      }
-    } catch {
-      Alert.alert('Error', 'Failed to accept request. Please try again.');
+      Alert.alert('Connected! 🎉', 'You and your friend are now connected.');
+      await loadData();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Failed to accept request. Please try again.';
+      Alert.alert('Error', msg);
     } finally {
       setAcceptingId(null);
     }
@@ -352,8 +414,10 @@ export const FriendsListScreen: React.FC = () => {
     try {
       await friendsService.declineFriendRequest(requestId);
       setRequests(prev => prev.filter(r => r.requestId !== requestId));
-    } catch {
-      Alert.alert('Error', 'Failed to decline request. Please try again.');
+      await loadData();
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Failed to decline request. Please try again.';
+      Alert.alert('Error', msg);
     }
   };
 
@@ -370,9 +434,10 @@ export const FriendsListScreen: React.FC = () => {
           onPress: async () => {
             try {
               await friendsService.removeFriend(id);
-              setFriends(prev => prev.filter(f => f.id !== id));
-            } catch {
-              Alert.alert('Error', 'Could not remove friend. Try again.');
+              await loadData();
+            } catch (err: any) {
+              const msg = err?.response?.data?.message || err?.message || 'Could not remove friend. Try again.';
+              Alert.alert('Error', msg);
             }
           },
         },
@@ -393,11 +458,15 @@ export const FriendsListScreen: React.FC = () => {
     try {
       await friendsService.sendFriendRequest(userId);
       setSearchResults(prev =>
-        prev.map(u => u.id === userId ? { ...u, hasPendingRequest: true } : u),
+        prev.map(u => (u.id === userId ? { ...u, hasPendingRequest: true } : u)),
+      );
+      setSuggestions(prev =>
+        prev.map(u => (u.id === userId ? { ...u, hasPendingRequest: true } : u)),
       );
       Alert.alert('Request Sent!', `Friend request sent to ${name}.`);
-    } catch {
-      Alert.alert('Error', 'Could not send friend request. Try again.');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Could not send friend request. Try again.';
+      Alert.alert('Error', msg);
     } finally {
       setAddingId(null);
     }
@@ -422,7 +491,7 @@ export const FriendsListScreen: React.FC = () => {
           <Text style={styles.emptyIcon}>👥</Text>
           <Text style={[styles.emptyTitle, { color: isDark ? '#F1F4F7' : '#1A2318' }]}>No friends yet</Text>
           <Text style={[styles.emptySub, { color: isDark ? '#7A9485' : '#5C7A6A' }]}>
-            Find friends using the search tab!
+            Discover players in the Suggestions tab!
           </Text>
         </View>
       ) : (
@@ -468,6 +537,14 @@ export const FriendsListScreen: React.FC = () => {
     <ScrollView
       contentContainerStyle={[styles.tabBody, { paddingBottom: 100 }]}
       showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={handleRefresh}
+          tintColor="#D4A017"
+          colors={['#D4A017', '#1F9D55']}
+        />
+      }
     >
       {pendingRequests.length === 0 ? (
         <View style={styles.emptyState}>
@@ -525,37 +602,71 @@ export const FriendsListScreen: React.FC = () => {
           <ActivityIndicator size="large" color="#D4A017" />
           <Text style={[styles.loadingText, { color: isDark ? '#7A9485' : '#5C7A6A' }]}>Searching…</Text>
         </View>
-      ) : searchQuery && searchResults.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>🔎</Text>
-          <Text style={[styles.emptyTitle, { color: isDark ? '#F1F4F7' : '#1A2318' }]}>No users found</Text>
-          <Text style={[styles.emptySub, { color: isDark ? '#7A9485' : '#5C7A6A' }]}>
-            Try searching with a different username.
-          </Text>
-        </View>
-      ) : !searchQuery ? (
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyIcon}>🧑‍🤝‍🧑</Text>
-          <Text style={[styles.emptyTitle, { color: isDark ? '#F1F4F7' : '#1A2318' }]}>Find new friends</Text>
-          <Text style={[styles.emptySub, { color: isDark ? '#7A9485' : '#5C7A6A' }]}>
-            Type a username above to search for players.
-          </Text>
-        </View>
+      ) : searchQuery ? (
+        searchResults.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyIcon}>🔎</Text>
+            <Text style={[styles.emptyTitle, { color: isDark ? '#F1F4F7' : '#1A2318' }]}>No users found</Text>
+            <Text style={[styles.emptySub, { color: isDark ? '#7A9485' : '#5C7A6A' }]}>
+              Try searching with a different username.
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={searchResults}
+            keyExtractor={item => item.id}
+            contentContainerStyle={[styles.tabBody, { paddingBottom: 100 }]}
+            showsVerticalScrollIndicator={false}
+            renderItem={({ item }) => (
+              <SearchResultRow
+                user={item}
+                onAdd={handleAddFriend}
+                isDark={isDark}
+                adding={addingId === item.id}
+                isFriend={item.isFriend || friends.some(f => f.id === item.id)}
+              />
+            )}
+          />
+        )
       ) : (
-        <FlatList
-          data={searchResults}
-          keyExtractor={item => item.id}
-          contentContainerStyle={[styles.tabBody, { paddingBottom: 100 }]}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <SearchResultRow
-              user={item}
-              onAdd={handleAddFriend}
-              isDark={isDark}
-              adding={addingId === item.id}
-            />
-          )}
-        />
+        suggestions.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyIcon}>🧑‍🤝‍🧑</Text>
+            <Text style={[styles.emptyTitle, { color: isDark ? '#F1F4F7' : '#1A2318' }]}>No suggestions available</Text>
+            <Text style={[styles.emptySub, { color: isDark ? '#7A9485' : '#5C7A6A' }]}>
+              Other registered players will appear here.
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={suggestions}
+            keyExtractor={item => item.id}
+            contentContainerStyle={[styles.tabBody, { paddingBottom: 100 }]}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={handleRefresh}
+                tintColor="#D4A017"
+                colors={['#D4A017', '#1F9D55']}
+              />
+            }
+            ListHeaderComponent={
+              <Text style={[styles.sectionLabel, { color: isDark ? '#D4A017' : '#B8872A', marginBottom: 12 }]}>
+                ✨ Suggested Players · {suggestions.length}
+              </Text>
+            }
+            renderItem={({ item }) => (
+              <SearchResultRow
+                user={item}
+                onAdd={handleAddFriend}
+                isDark={isDark}
+                adding={addingId === item.id}
+                isFriend={item.isFriend || friends.some(f => f.id === item.id)}
+              />
+            )}
+          />
+        )
       )}
     </View>
   );
@@ -588,7 +699,7 @@ export const FriendsListScreen: React.FC = () => {
           <TouchableOpacity
             activeOpacity={0.8}
             style={styles.inviteHeaderBtn}
-            onPress={() => switchTab('find', 2)}
+            onPress={() => switchTab('suggestions', 2)}
           >
             <LinearGradient colors={['#F0C64A', '#D4A017']} style={styles.inviteHeaderGradient}>
               <Text style={styles.inviteHeaderText}>+ Add</Text>
@@ -604,20 +715,24 @@ export const FriendsListScreen: React.FC = () => {
               { width: tabWidth, transform: [{ translateX: tabIndicatorX }] },
             ]}
           />
-          {(['all', 'requests', 'find'] as TabKey[]).map((tab, idx) => (
+          {([
+            { key: 'friends', label: `Friends (${friends.length})` },
+            { key: 'requests', label: `Requests${pendingRequests.length > 0 ? ` (${pendingRequests.length})` : ''}` },
+            { key: 'suggestions', label: `Suggestions (${suggestions.length})` },
+          ] as const).map((tab, idx) => (
             <TouchableOpacity
-              key={tab}
+              key={tab.key}
               style={[styles.tabPill, { width: tabWidth }]}
-              onPress={() => switchTab(tab, idx)}
+              onPress={() => switchTab(tab.key, idx)}
               activeOpacity={0.8}
             >
               <Text
                 style={[
                   styles.tabPillText,
-                  { color: activeTab === tab ? '#FFFFFF' : 'rgba(255,255,255,0.55)', fontWeight: activeTab === tab ? '700' : '500' },
+                  { color: activeTab === tab.key ? '#FFFFFF' : 'rgba(255,255,255,0.55)', fontWeight: activeTab === tab.key ? '700' : '500' },
                 ]}
               >
-                {tab === 'all' ? `All (${friends.length})` : tab === 'requests' ? `Requests${pendingRequests.length > 0 ? ` (${pendingRequests.length})` : ''}` : 'Find'}
+                {tab.label}
               </Text>
             </TouchableOpacity>
           ))}
@@ -626,9 +741,9 @@ export const FriendsListScreen: React.FC = () => {
 
       {/* ── Tab Content ── */}
       <View style={{ flex: 1 }}>
-        {activeTab === 'all' && renderAllFriends()}
+        {activeTab === 'friends' && renderAllFriends()}
         {activeTab === 'requests' && renderRequests()}
-        {activeTab === 'find' && renderFind()}
+        {activeTab === 'suggestions' && renderFind()}
       </View>
     </View>
   );
