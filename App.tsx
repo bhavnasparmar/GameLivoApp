@@ -33,8 +33,6 @@ const AppInner: React.FC = () => {
     <>
       <StatusBar
         barStyle={isDark ? 'light-content' : 'dark-content'}
-        backgroundColor="transparent"
-        translucent
       />
       <NavigationContainer>
         <RootNavigator />

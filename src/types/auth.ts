@@ -1,13 +1,17 @@
 // ─── Auth Types ─────────────────────────────────────────────────────────────
 
 export interface LoginRequest {
-  mobile: string;
+  identifier?: string;
+  mobile?: string;
+  email?: string;
+  username?: string;
   password: string;
 }
 
 export interface RegisterRequest {
   name: string;
-  mobile: string;
+  username?: string;
+  mobile?: string;
   email?: string;
   password: string;
   referralCode?: string;
@@ -22,7 +26,9 @@ export interface OTPRequest {
 export type OTPType = 'login' | 'register' | 'forgot_password';
 
 export interface ForgotPasswordRequest {
-  mobile: string;
+  mobile?: string;
+  email?: string;
+  identifier?: string;
 }
 
 export interface ResetPasswordRequest {

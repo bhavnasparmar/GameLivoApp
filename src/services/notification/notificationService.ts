@@ -1,25 +1,33 @@
+import apiClient from '../api/apiClient';
+import { API_ENDPOINTS } from '../api/apiEndpoints';
+import { AppNotification } from '../../types/notification';
+
 // ─── Notification Service ─────────────────────────────────────────────────────
-// Wraps @notifee/react-native or react-native-push-notification
 
 export const notificationService = {
-  requestPermission: async (): Promise<boolean> => {
-    // TODO: implement with @notifee/react-native
-    console.log('[Notifications] Request permission');
-    return true;
+  /**
+   * Fetch all notifications for the current user (paginated)
+   */
+  getNotifications: async (page = 1, limit = 30): Promise<AppNotification[]> => {
+    return apiClient.get<AppNotification[]>(API_ENDPOINTS.NOTIFICATIONS.LIST, {
+      page,
+      limit,
+    });
   },
 
-  displayLocal: async (title: string, body: string, data?: Record<string, string>): Promise<void> => {
-    // TODO: implement with @notifee/react-native
-    console.log('[Notifications] Display local:', { title, body, data });
+  /**
+   * Mark a single notification as read
+   */
+  markRead: async (notificationId: string): Promise<void> => {
+    return apiClient.patch<void>(API_ENDPOINTS.NOTIFICATIONS.MARK_READ(notificationId));
   },
 
-  setBadgeCount: async (count: number): Promise<void> => {
-    // TODO: implement with @notifee/react-native
-    console.log('[Notifications] Set badge:', count);
-  },
-
-  clearAll: async (): Promise<void> => {
-    // TODO: implement with @notifee/react-native
-    console.log('[Notifications] Clear all');
+  /**
+   * Mark ALL notifications as read
+   */
+  markAllRead: async (): Promise<void> => {
+    return apiClient.patch<void>(API_ENDPOINTS.NOTIFICATIONS.MARK_ALL_READ);
   },
 };
+
+export default notificationService;

@@ -1,3 +1,2 @@
-import React from "react";
-// PasswordInput component — implement per design spec
-export { default } from "./PasswordInput";
+export { default, PasswordInput } from './PasswordInput';
+export type { PasswordInputProps } from './PasswordInput';

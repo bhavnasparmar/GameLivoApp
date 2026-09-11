@@ -87,9 +87,8 @@ class LudoEngineImpl implements BaseGameEngine<LudoGameState, LudoMove> {
       capturedToken.position = -1;
       capturedToken.status = 'home';
     }
-
     const isGameOver = this.isGameOver(newState);
-    const winnerId = isGameOver ? this.getWinner(newState) : undefined;
+    const winnerId = isGameOver ? (this.getWinner(newState) || undefined) : undefined;
 
     // Advance turn (unless dice was 6 and below 3 consecutive)
     const keepTurn = state.currentDiceValue === 6 && newState.consecutiveSixes < 3;
