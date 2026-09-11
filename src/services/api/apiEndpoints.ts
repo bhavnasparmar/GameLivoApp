@@ -48,6 +48,7 @@ export const API_ENDPOINTS = {
   // Friends
   FRIENDS: {
     LIST: '/friends',
+    SUGGESTIONS: '/friends/suggestions',
     REQUESTS: '/friends/requests',
     SEND_REQUEST: '/friends/request',
     ACCEPT: (requestId: string) => `/friends/request/${requestId}/accept`,

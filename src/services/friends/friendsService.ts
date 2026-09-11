@@ -20,6 +20,13 @@ export const friendsService = {
   },
 
   /**
+   * Get friend suggestions (all registered users except current user)
+   */
+  getSuggestions: async (): Promise<SearchedUser[]> => {
+    return apiClient.get<SearchedUser[]>(API_ENDPOINTS.FRIENDS.SUGGESTIONS);
+  },
+
+  /**
    * Search for users by username
    */
   searchUsers: async (query: string): Promise<SearchedUser[]> => {
@@ -29,8 +36,8 @@ export const friendsService = {
   /**
    * Send a friend request to a user
    */
-  sendFriendRequest: async (userId: string): Promise<void> => {
-    return apiClient.post<void>(API_ENDPOINTS.FRIENDS.SEND_REQUEST, { userId });
+  sendFriendRequest: async (receiverId: string): Promise<any> => {
+    return apiClient.post<any>(API_ENDPOINTS.FRIENDS.SEND_REQUEST, { receiverId });
   },
 
   /**
