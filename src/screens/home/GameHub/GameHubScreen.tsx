@@ -178,13 +178,15 @@ export const GameHubScreen: React.FC = () => {
 
     dispatch(selectGame(matchedGame));
 
-    // Try navigating to game specific route, fallback to LudoHome or alert
     if (navigation.navigate) {
       try {
-        navigation.navigate(card.route);
+        navigation.navigate('Game', { screen: card.route });
       } catch {
-        // In case stack is restricted, try LudoHome
-        navigation.navigate('LudoHome');
+        try {
+          navigation.navigate(card.route);
+        } catch {
+          navigation.navigate('Game', { screen: 'LudoHome' });
+        }
       }
     }
   };
