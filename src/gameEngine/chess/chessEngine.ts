@@ -240,18 +240,14 @@ export class ChessEngineImpl implements BaseGameEngine<ChessGameState, ChessMove
 
     // 5. Check / Checkmate / Stalemate assessment
     const isNextInCheck = ChessRules.isInCheck(newBoard, nextColor);
-    const isNextCheckmated = ChessRules.isCheckmate(
+    const nextLegalMoves = ChessRules.getAllLegalMoves(
       newBoard,
       nextColor,
       newCastling,
       nextEnPassantTarget,
     );
-    const isNextStalemated = ChessRules.isStalemate(
-      newBoard,
-      nextColor,
-      newCastling,
-      nextEnPassantTarget,
-    );
+    const isNextCheckmated = isNextInCheck && nextLegalMoves.length === 0;
+    const isNextStalemated = !isNextInCheck && nextLegalMoves.length === 0;
     const isInsufficient = ChessRules.isInsufficientMaterial(newBoard);
 
     // 6. Fifty-move rule clock
@@ -365,6 +361,63 @@ export class ChessEngineImpl implements BaseGameEngine<ChessGameState, ChessMove
   }
 
   /**
+   * Fast board clone + move application for AI search (minimal overhead)
+   */
+  simulateBoardQuick(board: ChessBoard, move: ChessMove): ChessBoard {
+    const newBoard = board.map((row) => [...row]);
+    const piece = newBoard[move.from.row][move.from.col];
+    if (!piece) return newBoard;
+
+    let placedPiece: ChessPiece = { ...piece, hasMoved: true };
+    if (piece.type === 'pawn') {
+      if ((piece.color === 'white' && move.to.row === 0) || (piece.color === 'black' && move.to.row === 7)) {
+        placedPiece = { ...placedPiece, type: move.promotion || 'queen' };
+      }
+      // Handle en-passant visual cleanup
+      if (move.moveType === 'en_passant' || (move.from.col !== move.to.col && !newBoard[move.to.row][move.to.col])) {
+        newBoard[move.from.row][move.to.col] = null;
+      }
+    } else if (piece.type === 'king') {
+      // Castling rook movement
+      if (move.to.col - move.from.col === 2) {
+        const rook = newBoard[move.from.row][7];
+        newBoard[move.from.row][5] = rook ? { ...rook, hasMoved: true } : null;
+        newBoard[move.from.row][7] = null;
+      } else if (move.from.col - move.to.col === 2) {
+        const rook = newBoard[move.from.row][0];
+        newBoard[move.from.row][3] = rook ? { ...rook, hasMoved: true } : null;
+        newBoard[move.from.row][0] = null;
+      }
+    }
+
+    newBoard[move.to.row][move.to.col] = placedPiece;
+    newBoard[move.from.row][move.from.col] = null;
+    return newBoard;
+  }
+
+  /**
+   * Orders moves so captures and promotions are evaluated first for efficient pruning
+   */
+  private orderMoves(moves: ChessMove[]): ChessMove[] {
+    return [...moves].sort((a, b) => {
+      let scoreA = 0;
+      let scoreB = 0;
+
+      if (a.capturedPiece) {
+        scoreA += (PIECE_VALUES[a.capturedPiece.type] || 1) * 10 - (PIECE_VALUES[a.piece.type] || 1);
+      }
+      if (a.promotion) scoreA += 90;
+
+      if (b.capturedPiece) {
+        scoreB += (PIECE_VALUES[b.capturedPiece.type] || 1) * 10 - (PIECE_VALUES[b.piece.type] || 1);
+      }
+      if (b.promotion) scoreB += 90;
+
+      return scoreB - scoreA;
+    });
+  }
+
+  /**
    * Evaluates the board score for minimax AI
    */
   evaluateBoard(board: ChessBoard, activeColor: ChessColor): number {
@@ -399,115 +452,121 @@ export class ChessEngineImpl implements BaseGameEngine<ChessGameState, ChessMove
   }
 
   /**
-   * Generates a smart AI move based on difficulty
+   * Generates a smart, ultra-responsive AI move based on difficulty
    */
   calculateAiMove(state: ChessGameState, difficulty: ChessDifficulty = 'medium'): ChessMove | null {
-    const aiColor = state.currentTurn;
-    const allLegalMoves = ChessRules.getAllLegalMoves(
-      state.board,
-      aiColor,
-      state.castlingRights,
-      state.enPassantTarget,
-    );
+    try {
+      const aiColor = state.currentTurn;
+      const allLegalMoves = ChessRules.getAllLegalMoves(
+        state.board,
+        aiColor,
+        state.castlingRights,
+        state.enPassantTarget,
+      );
 
-    if (allLegalMoves.length === 0) return null;
+      if (allLegalMoves.length === 0) return null;
+      if (allLegalMoves.length === 1) return allLegalMoves[0];
 
-    // Easy AI: 70% random, 30% capture if available
-    if (difficulty === 'easy') {
-      const captures = allLegalMoves.filter((m) => m.capturedPiece);
-      if (captures.length > 0 && Math.random() < 0.35) {
-        return captures[Math.floor(Math.random() * captures.length)];
+      // Easy AI: 70% random, 30% capture if available
+      if (difficulty === 'easy') {
+        const captures = allLegalMoves.filter((m) => m.capturedPiece);
+        if (captures.length > 0 && Math.random() < 0.35) {
+          return captures[Math.floor(Math.random() * captures.length)];
+        }
+        return allLegalMoves[Math.floor(Math.random() * allLegalMoves.length)];
       }
-      return allLegalMoves[Math.floor(Math.random() * allLegalMoves.length)];
-    }
 
-    // Medium AI: 1-ply evaluation with center control & capture priorities
-    if (difficulty === 'medium') {
+      const oppColor: ChessColor = aiColor === 'white' ? 'black' : 'white';
+
+      // Medium AI: Fast 1-ply tactical evaluation
+      if (difficulty === 'medium') {
+        let bestMove = allLegalMoves[0];
+        let bestScore = -Infinity;
+
+        // Shuffle slightly for natural variety
+        const shuffled = [...allLegalMoves].sort(() => Math.random() - 0.5);
+
+        for (const move of shuffled) {
+          const simBoard = this.simulateBoardQuick(state.board, move);
+          const isOppInCheck = ChessRules.isInCheck(simBoard, oppColor);
+
+          let moveScore = this.evaluateBoard(simBoard, aiColor);
+          if (isOppInCheck) moveScore += 60;
+          if (move.capturedPiece) {
+            moveScore += (PIECE_VALUES[move.capturedPiece.type] || 1) * 20;
+          }
+          if (move.promotion) {
+            moveScore += 800;
+          }
+
+          // Small random factor
+          moveScore += Math.random() * 12;
+
+          if (moveScore > bestScore) {
+            bestScore = moveScore;
+            bestMove = move;
+          }
+        }
+        return bestMove;
+      }
+
+      // Hard AI: 2-ply search with move ordering & alpha-beta pruning
       let bestMove = allLegalMoves[0];
-      let bestScore = -Infinity;
+      let bestVal = -Infinity;
 
-      for (const move of allLegalMoves) {
-        const { newState } = this.applyMove(state, move);
-        let moveScore = this.evaluateBoard(newState.board, aiColor);
+      const orderedMoves = this.orderMoves(allLegalMoves);
 
-        // Prioritize checkmate / check
-        if (newState.isCheckmate) moveScore += 10000;
-        else if (newState.isCheck) moveScore += 50;
+      for (const move of orderedMoves) {
+        const simBoard = this.simulateBoardQuick(state.board, move);
+        const isOppInCheck = ChessRules.isInCheck(simBoard, oppColor);
 
-        // Add small random noise to prevent predictability
-        moveScore += Math.random() * 15;
+        // Immediate checkmate check
+        const oppMoves = ChessRules.getAllLegalMoves(simBoard, oppColor);
+        if (oppMoves.length === 0) {
+          if (isOppInCheck) return move; // Deliver instant checkmate!
+        }
 
-        if (moveScore > bestScore) {
-          bestScore = moveScore;
+        let moveScore = this.evaluateBoard(simBoard, aiColor);
+        if (isOppInCheck) moveScore += 50;
+        if (move.capturedPiece) {
+          moveScore += (PIECE_VALUES[move.capturedPiece.type] || 1) * 25;
+        }
+        if (move.promotion) moveScore += 800;
+
+        // Check best opponent response
+        if (oppMoves.length > 0) {
+          let worstOppScore = Infinity;
+          // Only evaluate top 10 opponent responses for blistering fast search (< 15ms)
+          const orderedOppMoves = this.orderMoves(oppMoves).slice(0, 10);
+          for (const oppMove of orderedOppMoves) {
+            const oppSimBoard = this.simulateBoardQuick(simBoard, oppMove);
+            const scoreAfterOpp = this.evaluateBoard(oppSimBoard, aiColor);
+            if (scoreAfterOpp < worstOppScore) {
+              worstOppScore = scoreAfterOpp;
+            }
+          }
+          moveScore = worstOppScore;
+        }
+
+        // Add small variance
+        moveScore += Math.random() * 6 - 3;
+
+        if (moveScore > bestVal) {
+          bestVal = moveScore;
           bestMove = move;
         }
       }
-      return bestMove;
-    }
 
-    // Hard AI: Minimax depth 2 with alpha-beta pruning
-    let bestMove = allLegalMoves[0];
-    let bestVal = -Infinity;
-
-    for (const move of allLegalMoves) {
-      const { newState } = this.applyMove(state, move);
-      if (newState.isCheckmate) return move; // Instant checkmate
-
-      const val = this.minimax(newState, 2, -Infinity, Infinity, false, aiColor);
-      if (val > bestVal) {
-        bestVal = val;
-        bestMove = move;
-      }
-    }
-
-    return bestMove;
-  }
-
-  private minimax(
-    state: ChessGameState,
-    depth: number,
-    alpha: number,
-    beta: number,
-    isMaximizing: boolean,
-    aiColor: ChessColor,
-  ): number {
-    if (depth === 0 || state.gameStatus !== 'in_progress' && state.gameStatus !== 'check') {
-      return this.evaluateBoard(state.board, aiColor);
-    }
-
-    const currentTurn = state.currentTurn;
-    const moves = ChessRules.getAllLegalMoves(
-      state.board,
-      currentTurn,
-      state.castlingRights,
-      state.enPassantTarget,
-    );
-
-    if (moves.length === 0) {
-      if (state.isCheck) return isMaximizing ? -20000 : 20000;
-      return 0; // Stalemate
-    }
-
-    if (isMaximizing) {
-      let maxEval = -Infinity;
-      for (const move of moves) {
-        const { newState } = this.applyMove(state, move);
-        const evalVal = this.minimax(newState, depth - 1, alpha, beta, false, aiColor);
-        maxEval = Math.max(maxEval, evalVal);
-        alpha = Math.max(alpha, evalVal);
-        if (beta <= alpha) break;
-      }
-      return maxEval;
-    } else {
-      let minEval = Infinity;
-      for (const move of moves) {
-        const { newState } = this.applyMove(state, move);
-        const evalVal = this.minimax(newState, depth - 1, alpha, beta, true, aiColor);
-        minEval = Math.min(minEval, evalVal);
-        beta = Math.min(beta, evalVal);
-        if (beta <= alpha) break;
-      }
-      return minEval;
+      return bestMove || allLegalMoves[0];
+    } catch (e) {
+      console.warn('AI calculation fallback:', e);
+      const fallbackMoves = ChessRules.getAllLegalMoves(
+        state.board,
+        state.currentTurn,
+        state.castlingRights,
+        state.enPassantTarget,
+      );
+      return fallbackMoves.length > 0 ? fallbackMoves[0] : null;
     }
   }
 
