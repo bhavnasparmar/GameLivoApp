@@ -35,12 +35,16 @@ class SocketService {
     this.status = 'disconnected';
   }
 
-  emit<T>(event: string, data: T): void {
+  emit<T = any>(event: string, data?: T): void {
     if (!this.socket?.connected) {
       console.warn(`[Socket] Cannot emit "${event}" — not connected`);
       return;
     }
-    this.socket.emit(event, data);
+    if (data !== undefined) {
+      this.socket.emit(event, data);
+    } else {
+      this.socket.emit(event);
+    }
   }
 
   on<T>(event: string, handler: (data: T) => void): void {

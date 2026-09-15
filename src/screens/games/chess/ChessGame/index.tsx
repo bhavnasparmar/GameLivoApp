@@ -545,7 +545,9 @@ export const ChessGameScreen: React.FC = () => {
                 ? `Chess vs AI (${difficulty})`
                 : mode === 'random'
                 ? 'Quick Match 1v1'
-                : 'Chess Match 1v1'}
+                : mode === 'private'
+                ? 'Friend Match 1v1'
+                : 'Pass & Play 1v1'}
             </Text>
             <Text style={styles.headerSub}>
               {gameState.gameStatus === 'check'
