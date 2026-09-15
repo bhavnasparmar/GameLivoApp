@@ -102,8 +102,8 @@ export class ChessRules {
   ): boolean {
     const oppColor = attackingColor;
 
-    // 1. Pawn attacks
-    const pawnDir = oppColor === 'white' ? -1 : 1; // Pawns attack forward
+    // 1. Pawn attacks (Pawns attack forward-diagonally relative to their movement direction)
+    const pawnDir = oppColor === 'white' ? -1 : 1;
     const pawnRow = target.row - pawnDir;
     for (const pawnCol of [target.col - 1, target.col + 1]) {
       if (this.isInsideBoard(pawnRow, pawnCol)) {
@@ -130,7 +130,7 @@ export class ChessRules {
       }
     }
 
-    // 3. King attacks (1 step)
+    // 3. King attacks (1 step adjacent)
     for (let dr = -1; dr <= 1; dr++) {
       for (let dc = -1; dc <= 1; dc++) {
         if (dr === 0 && dc === 0) continue;
@@ -158,7 +158,7 @@ export class ChessRules {
           if (piece.color === oppColor && (piece.type === 'rook' || piece.type === 'queen')) {
             return true;
           }
-          break; // Blocked by piece
+          break; // Line of sight blocked by piece
         }
         step++;
       }
@@ -177,7 +177,7 @@ export class ChessRules {
           if (piece.color === oppColor && (piece.type === 'bishop' || piece.type === 'queen')) {
             return true;
           }
-          break; // Blocked
+          break; // Line of sight blocked
         }
         step++;
       }
@@ -212,10 +212,21 @@ export class ChessRules {
     simBoard[move.to.row][move.to.col] = piece;
     simBoard[move.from.row][move.from.col] = null;
 
-    // Special handling for en passant simulation
+    // Special handling for en passant simulation (remove captured pawn on from.row)
     if (move.moveType === 'en_passant') {
-      const capturedPawnRow = color === 'white' ? move.to.row + 1 : move.to.row - 1;
+      const capturedPawnRow = move.from.row;
       simBoard[capturedPawnRow][move.to.col] = null;
+    }
+
+    // Special handling for castling rook placement
+    if (move.moveType === 'castle_kingside') {
+      const rook = simBoard[move.from.row][7];
+      simBoard[move.from.row][5] = rook;
+      simBoard[move.from.row][7] = null;
+    } else if (move.moveType === 'castle_queenside') {
+      const rook = simBoard[move.from.row][0];
+      simBoard[move.from.row][3] = rook;
+      simBoard[move.from.row][0] = null;
     }
 
     return this.isInCheck(simBoard, color);
@@ -256,7 +267,7 @@ export class ChessRules {
           promotion: isPromo ? 'queen' : undefined,
         });
 
-        // 2-step forward from starting row
+        // 2-step forward from starting row (both 1st and 2nd square must be empty)
         const f2Row = row + 2 * dir;
         if (row === startRow && this.isInsideBoard(f2Row, col) && !board[f2Row][col]) {
           moves.push({
@@ -289,15 +300,17 @@ export class ChessRules {
             enPassantTarget.row === f1Row &&
             enPassantTarget.col === targetCol
           ) {
-            // En Passant Capture
+            // En Passant Capture (enemy pawn sits at [row][targetCol])
             const capturedPawn = board[row][targetCol];
-            moves.push({
-              from: pos,
-              to: { row: f1Row, col: targetCol },
-              piece,
-              capturedPiece: capturedPawn,
-              moveType: 'en_passant',
-            });
+            if (capturedPawn && capturedPawn.color === oppColor && capturedPawn.type === 'pawn') {
+              moves.push({
+                from: pos,
+                to: { row: f1Row, col: targetCol },
+                piece,
+                capturedPiece: capturedPawn,
+                moveType: 'en_passant',
+              });
+            }
           }
         }
       }
@@ -359,7 +372,7 @@ export class ChessRules {
                 moveType: 'capture',
               });
             }
-            break; // Path blocked
+            break; // Line of sight blocked
           }
           step++;
         }
@@ -403,6 +416,7 @@ export class ChessRules {
           !board[kingRow][5] &&
           !board[kingRow][6] &&
           board[kingRow][7]?.type === 'rook' &&
+          board[kingRow][7]?.color === color &&
           !board[kingRow][7]?.hasMoved &&
           !this.isSquareAttacked(board, { row: kingRow, col: 5 }, oppColor) &&
           !this.isSquareAttacked(board, { row: kingRow, col: 6 }, oppColor)
@@ -424,6 +438,7 @@ export class ChessRules {
           !board[kingRow][2] &&
           !board[kingRow][3] &&
           board[kingRow][0]?.type === 'rook' &&
+          board[kingRow][0]?.color === color &&
           !board[kingRow][0]?.hasMoved &&
           !this.isSquareAttacked(board, { row: kingRow, col: 2 }, oppColor) &&
           !this.isSquareAttacked(board, { row: kingRow, col: 3 }, oppColor)
@@ -515,11 +530,11 @@ export class ChessRules {
   }
 
   /**
-   * Insufficient material detection (FIDE rule):
+   * Insufficient material detection (FIDE standard):
    * - K vs K
    * - K+B vs K
    * - K+N vs K
-   * - K+B vs K+B (same color bishop)
+   * - K+B vs K+B (both bishops on same square color)
    */
   static isInsufficientMaterial(board: ChessBoard): boolean {
     const pieces: { type: ChessPieceType; color: ChessColor; pos: ChessPosition }[] = [];
@@ -559,28 +574,28 @@ export class ChessRules {
   }
 
   /**
-   * Standard Algebraic Notation generator
+   * Standard Algebraic Notation generator (FIDE SAN) with disambiguation
    */
   static getAlgebraicNotation(
     move: ChessMove,
     isCheck: boolean,
     isCheckmate: boolean,
+    boardBeforeMove?: ChessBoard,
+    castlingRights?: CastlingRights,
+    enPassantTarget?: ChessPosition | null,
   ): string {
     if (move.moveType === 'castle_kingside') return isCheckmate ? 'O-O#' : isCheck ? 'O-O+' : 'O-O';
     if (move.moveType === 'castle_queenside') return isCheckmate ? 'O-O-O#' : isCheck ? 'O-O-O+' : 'O-O-O';
 
     const cols = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
     const fromCol = cols[move.from.col];
+    const fromRank = `${8 - move.from.row}`;
     const toSquare = `${cols[move.to.col]}${8 - move.to.row}`;
-    const piecePrefix =
-      move.piece.type === 'pawn'
-        ? ''
-        : move.piece.type === 'knight'
-        ? 'N'
-        : move.piece.type.charAt(0).toUpperCase();
+    const pieceType = move.piece.type;
 
     let notation = '';
-    if (move.piece.type === 'pawn') {
+
+    if (pieceType === 'pawn') {
       if (move.capturedPiece || move.moveType === 'en_passant') {
         notation = `${fromCol}x${toSquare}`;
       } else {
@@ -590,8 +605,46 @@ export class ChessRules {
         notation += `=${move.promotion.charAt(0).toUpperCase()}`;
       }
     } else {
+      const pieceLetter = pieceType === 'knight' ? 'N' : pieceType.charAt(0).toUpperCase();
+      let disambiguation = '';
+
+      // Check if another identical piece of same color can reach the destination
+      if (boardBeforeMove) {
+        const otherCandidates: ChessPosition[] = [];
+        for (let r = 0; r < 8; r++) {
+          for (let c = 0; c < 8; c++) {
+            if (r === move.from.row && c === move.from.col) continue;
+            const p = boardBeforeMove[r][c];
+            if (p && p.color === move.piece.color && p.type === pieceType) {
+              const legalMoves = this.getLegalMoves(
+                boardBeforeMove,
+                { row: r, col: c },
+                castlingRights,
+                enPassantTarget,
+              );
+              if (legalMoves.some((m) => m.to.row === move.to.row && m.to.col === move.to.col)) {
+                otherCandidates.push({ row: r, col: c });
+              }
+            }
+          }
+        }
+
+        if (otherCandidates.length > 0) {
+          const sameCol = otherCandidates.some((p) => p.col === move.from.col);
+          const sameRow = otherCandidates.some((p) => p.row === move.from.row);
+
+          if (!sameCol) {
+            disambiguation = fromCol;
+          } else if (!sameRow) {
+            disambiguation = fromRank;
+          } else {
+            disambiguation = `${fromCol}${fromRank}`;
+          }
+        }
+      }
+
       const captureStr = move.capturedPiece ? 'x' : '';
-      notation = `${piecePrefix}${captureStr}${toSquare}`;
+      notation = `${pieceLetter}${disambiguation}${captureStr}${toSquare}`;
     }
 
     if (isCheckmate) notation += '#';
@@ -600,3 +653,4 @@ export class ChessRules {
     return notation;
   }
 }
+

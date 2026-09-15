@@ -8,6 +8,7 @@ export const SOCKET_EVENTS = {
   CONNECT_ERROR: 'connect_error',
 
   // Lobby
+  LOBBY_CREATE: 'lobby:create',
   LOBBY_JOIN: 'lobby:join',
   LOBBY_LEAVE: 'lobby:leave',
   LOBBY_UPDATE: 'lobby:update',
@@ -52,6 +53,7 @@ export const SOCKET_EVENTS = {
   FRIEND_REQUEST: 'friend:request',
   FRIEND_ACCEPTED: 'friend:accepted',
   FRIEND_GAME_INVITE: 'friend:game_invite',
+  FRIEND_INVITE_RESPONSE: 'friend:invite_response',
 
   // Notification
   NOTIFICATION_NEW: 'notification:new',
