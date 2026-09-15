@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,9 @@ import {
   Alert,
   Dimensions,
   Animated,
+  Image,
 } from 'react-native';
+import FastImage from 'react-native-fast-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -22,7 +24,10 @@ import {
 } from '../../../../gameEngine/chess/chessTypes';
 import { chessEngine, ChessEngineImpl } from '../../../../gameEngine/chess/chessEngine';
 import { ChessRules } from '../../../../gameEngine/chess/chessRules';
-import { CHESS_DEFAULT_TIME_SECONDS } from '../../../../gameEngine/chess/chessConstants';
+import {
+  CHESS_DEFAULT_TIME_SECONDS,
+  ALL_CHESS_PIECE_ASSETS,
+} from '../../../../gameEngine/chess/chessConstants';
 import ChessBoardView from '../components/ChessBoardView';
 import ChessPlayerBar from '../components/ChessPlayerBar';
 import PawnPromotionModal from '../components/PawnPromotionModal';
@@ -31,13 +36,27 @@ import { socketService } from '../../../../services/socket/socketService';
 import { SOCKET_EVENTS } from '../../../../constants/socketConstants';
 import { useAppSelector } from '../../../../redux/hooks';
 
-const { width } = Dimensions.get('window');
-
 export const ChessGameScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const { theme, isDark } = useTheme();
+  const { isDark } = useTheme();
+
+  // Fast GPU asset texture preloading
+  useEffect(() => {
+    try {
+      const preloadList = ALL_CHESS_PIECE_ASSETS.map((asset) => {
+        const source = Image.resolveAssetSource(asset);
+        return { uri: source?.uri || '' };
+      }).filter((item) => Boolean(item.uri));
+
+      if (preloadList.length > 0) {
+        FastImage.preload(preloadList);
+      }
+    } catch (e) {
+      // Safe fallback
+    }
+  }, []);
 
   const userProfile = useAppSelector((state) => state.user.profile);
   const currentUserId = useAppSelector((state) => state.auth.userId) || 'guest_me';
@@ -46,7 +65,6 @@ export const ChessGameScreen: React.FC = () => {
 
   const playerName = customPlayer1Name || userProfile?.name || userProfile?.username || 'Player 1';
   const player2Name = customPlayer2Name || 'Player 2';
-  const username = playerName;
   const playerRating = userProfile?.gameStats?.find((g) => g.gameId === 'chess')?.rank || 1420;
 
   const matchId = route.params?.matchId || `chess_${Date.now()}`;
@@ -73,6 +91,10 @@ export const ChessGameScreen: React.FC = () => {
     ),
   );
 
+  // Independent Clocks: Prevents 64-square full board re-renders on each second tick
+  const [whiteTimeLeft, setWhiteTimeLeft] = useState<number>(initialTimeSeconds);
+  const [blackTimeLeft, setBlackTimeLeft] = useState<number>(initialTimeSeconds);
+
   const [selectedPos, setSelectedPos] = useState<ChessPosition | null>(null);
   const [pendingPromotionMove, setPendingPromotionMove] = useState<{
     from: ChessPosition;
@@ -82,7 +104,6 @@ export const ChessGameScreen: React.FC = () => {
   const [isFlipped, setIsFlipped] = useState(myColor === 'black');
   const [modalAction, setModalAction] = useState<ChessActionType | null>(null);
   const [isAiThinking, setIsAiThinking] = useState(false);
-  const [incomingDrawOffer, setIncomingDrawOffer] = useState<{ from: string } | null>(null);
 
   // Check alert banner animation
   const checkBannerOpacity = useRef(new Animated.Value(0)).current;
@@ -119,6 +140,8 @@ export const ChessGameScreen: React.FC = () => {
       if (moveData && moveData.from && moveData.to) {
         setGameState((prev) => {
           const { newState } = chessEngine.applyMove(prev, moveData);
+          setWhiteTimeLeft(newState.whiteTimeLeft);
+          setBlackTimeLeft(newState.blackTimeLeft);
           return newState;
         });
       }
@@ -149,7 +172,7 @@ export const ChessGameScreen: React.FC = () => {
               });
             },
           },
-        ]
+        ],
       );
     };
 
@@ -185,7 +208,7 @@ export const ChessGameScreen: React.FC = () => {
       Alert.alert(
         'Player Disconnected',
         `${data.username || 'Opponent'} has disconnected.`,
-        [{ text: 'OK' }]
+        [{ text: 'OK' }],
       );
     };
 
@@ -208,7 +231,7 @@ export const ChessGameScreen: React.FC = () => {
   gameStateRef.current = gameState;
   const isAiThinkingRef = useRef(false);
 
-  // Clock countdown timer
+  // Clock countdown timer (Updates only local time numbers without invalidating entire board)
   const isGameActive = gameState.gameStatus === 'in_progress' || gameState.gameStatus === 'check';
 
   useEffect(() => {
@@ -217,37 +240,36 @@ export const ChessGameScreen: React.FC = () => {
     }
 
     const timer = setInterval(() => {
-      setGameState((prev) => {
-        if (prev.gameStatus !== 'in_progress' && prev.gameStatus !== 'check') {
-          return prev;
-        }
-
-        if (prev.currentTurn === 'white') {
-          const nextTime = Math.max(0, prev.whiteTimeLeft - 1);
+      const turn = gameStateRef.current.currentTurn;
+      if (turn === 'white') {
+        setWhiteTimeLeft((prev: number) => {
+          const nextTime = Math.max(0, prev - 1);
           if (nextTime === 0) {
-            return {
-              ...prev,
+            setGameState((g) => ({
+              ...g,
               whiteTimeLeft: 0,
               gameStatus: 'timeout',
               winner: 'black',
               winReason: 'White ran out of time! Black wins.',
-            };
+            }));
           }
-          return { ...prev, whiteTimeLeft: nextTime };
-        } else {
-          const nextTime = Math.max(0, prev.blackTimeLeft - 1);
+          return nextTime;
+        });
+      } else {
+        setBlackTimeLeft((prev: number) => {
+          const nextTime = Math.max(0, prev - 1);
           if (nextTime === 0) {
-            return {
-              ...prev,
+            setGameState((g) => ({
+              ...g,
               blackTimeLeft: 0,
               gameStatus: 'timeout',
               winner: 'white',
               winReason: 'Black ran out of time! White wins.',
-            };
+            }));
           }
-          return { ...prev, blackTimeLeft: nextTime };
-        }
-      });
+          return nextTime;
+        });
+      }
     }, 1000);
 
     return () => clearInterval(timer);
@@ -267,7 +289,6 @@ export const ChessGameScreen: React.FC = () => {
   // Handle Game Over Navigation to ChessResult
   useEffect(() => {
     if (gameState.gameStatus !== 'in_progress' && gameState.gameStatus !== 'check') {
-      // If online mode, notify backend
       if (isOnlineMode) {
         socketService.emit(SOCKET_EVENTS.GAME_OVER, {
           matchId,
@@ -305,9 +326,10 @@ export const ChessGameScreen: React.FC = () => {
     myColor,
     currentUserId,
     opponentData,
+    playerName,
+    player2Name,
   ]);
 
-  const humanColor = isFlipped ? 'black' : 'white';
   const aiColor = isFlipped ? 'white' : 'black';
 
   // AI Opponent Move Trigger (for VS Computer)
@@ -324,50 +346,54 @@ export const ChessGameScreen: React.FC = () => {
       const aiDelay = Math.floor(400 + Math.random() * 350);
 
       const aiTimer = setTimeout(() => {
-        try {
-          const currentState = gameStateRef.current;
-          if (
-            currentState.currentTurn === aiColor &&
-            (currentState.gameStatus === 'in_progress' || currentState.gameStatus === 'check')
-          ) {
-            const aiMove = chessEngine.calculateAiMove(currentState, difficulty);
-            if (aiMove) {
-              const { newState, result } = chessEngine.applyMove(currentState, aiMove);
-              if (result.isValid) {
-                setGameState(newState);
-              } else {
-                // Fallback to any valid legal move
-                const fallbackMoves = ChessRules.getAllLegalMoves(
-                  currentState.board,
-                  aiColor,
-                  currentState.castlingRights,
-                  currentState.enPassantTarget,
-                );
-                if (fallbackMoves.length > 0) {
-                  const { newState: fallbackState } = chessEngine.applyMove(currentState, fallbackMoves[0]);
-                  setGameState(fallbackState);
+        requestAnimationFrame(() => {
+          try {
+            const currentState = gameStateRef.current;
+            if (
+              currentState.currentTurn === aiColor &&
+              (currentState.gameStatus === 'in_progress' || currentState.gameStatus === 'check')
+            ) {
+              const aiMove = chessEngine.calculateAiMove(currentState, difficulty);
+              if (aiMove) {
+                const { newState, result } = chessEngine.applyMove(currentState, aiMove);
+                if (result.isValid) {
+                  setGameState(newState);
+                  setWhiteTimeLeft(newState.whiteTimeLeft);
+                  setBlackTimeLeft(newState.blackTimeLeft);
+                } else {
+                  const fallbackMoves = ChessRules.getAllLegalMoves(
+                    currentState.board,
+                    aiColor,
+                    currentState.castlingRights,
+                    currentState.enPassantTarget,
+                  );
+                  if (fallbackMoves.length > 0) {
+                    const { newState: fallbackState } = chessEngine.applyMove(currentState, fallbackMoves[0]);
+                    setGameState(fallbackState);
+                    setWhiteTimeLeft(fallbackState.whiteTimeLeft);
+                    setBlackTimeLeft(fallbackState.blackTimeLeft);
+                  }
                 }
+              } else {
+                const inCheck = ChessRules.isInCheck(currentState.board, aiColor);
+                const opponentColor = aiColor === 'white' ? 'black' : 'white';
+                setGameState((prev) => ({
+                  ...prev,
+                  gameStatus: inCheck ? 'checkmate' : 'stalemate',
+                  winner: inCheck ? opponentColor : 'draw',
+                  winReason: inCheck
+                    ? `Checkmate! ${opponentColor.toUpperCase()} wins.`
+                    : 'Stalemate — Draw!',
+                }));
               }
-            } else {
-              // No legal moves available: check if in checkmate or stalemate
-              const inCheck = ChessRules.isInCheck(currentState.board, aiColor);
-              const opponentColor = aiColor === 'white' ? 'black' : 'white';
-              setGameState((prev) => ({
-                ...prev,
-                gameStatus: inCheck ? 'checkmate' : 'stalemate',
-                winner: inCheck ? opponentColor : 'draw',
-                winReason: inCheck
-                  ? `Checkmate! ${opponentColor.toUpperCase()} wins.`
-                  : 'Stalemate — Draw!',
-              }));
             }
+          } catch (err) {
+            console.error('Error executing AI move:', err);
+          } finally {
+            isAiThinkingRef.current = false;
+            setIsAiThinking(false);
           }
-        } catch (err) {
-          console.error('Error executing AI move:', err);
-        } finally {
-          isAiThinkingRef.current = false;
-          setIsAiThinking(false);
-        }
+        });
       }, aiDelay);
 
       return () => {
@@ -387,31 +413,33 @@ export const ChessGameScreen: React.FC = () => {
     aiColor,
   ]);
 
-  // Legal moves for currently selected square
-  const legalMovesForSelected = selectedPos
-    ? ChessRules.getLegalMoves(
-        gameState.board,
-        selectedPos,
-        gameState.castlingRights,
-        gameState.enPassantTarget,
-      )
-    : [];
+  // Memoized Legal moves for currently selected square
+  const legalMovesForSelected = useMemo(() => {
+    if (!selectedPos) return [];
+    return ChessRules.getLegalMoves(
+      gameState.board,
+      selectedPos,
+      gameState.castlingRights,
+      gameState.enPassantTarget,
+    );
+  }, [selectedPos, gameState.board, gameState.castlingRights, gameState.enPassantTarget]);
 
-  // Square Press handler
+  // Stable Square Press handler
   const handleSquarePress = useCallback(
     (pos: ChessPosition) => {
-      if (gameState.gameStatus !== 'in_progress' && gameState.gameStatus !== 'check') return;
+      const currentState = gameStateRef.current;
+      if (currentState.gameStatus !== 'in_progress' && currentState.gameStatus !== 'check') return;
 
       // In VS Computer: block if AI's turn
-      if (mode === 'computer' && gameState.currentTurn === aiColor) return;
+      if (mode === 'computer' && currentState.currentTurn === aiColor) return;
 
       // In Online Mode: block if not user's turn
-      if (isOnlineMode && gameState.currentTurn !== myColor) return;
+      if (isOnlineMode && currentState.currentTurn !== myColor) return;
 
-      const clickedPiece = gameState.board[pos.row][pos.col];
+      const clickedPiece = currentState.board[pos.row][pos.col];
 
       // 1. If clicking own piece, select it
-      if (clickedPiece && clickedPiece.color === gameState.currentTurn) {
+      if (clickedPiece && clickedPiece.color === currentState.currentTurn) {
         if (isOnlineMode && clickedPiece.color !== myColor) return;
         setSelectedPos(pos);
         return;
@@ -424,7 +452,7 @@ export const ChessGameScreen: React.FC = () => {
         );
 
         if (legalMove) {
-          const movingPiece = gameState.board[selectedPos.row][selectedPos.col];
+          const movingPiece = currentState.board[selectedPos.row][selectedPos.col];
 
           // Check if move requires Pawn Promotion choice
           if (
@@ -438,9 +466,11 @@ export const ChessGameScreen: React.FC = () => {
           }
 
           // Apply move locally
-          const { newState, result } = chessEngine.applyMove(gameState, legalMove);
+          const { newState, result } = chessEngine.applyMove(currentState, legalMove);
           if (result.isValid) {
             setGameState(newState);
+            setWhiteTimeLeft(newState.whiteTimeLeft);
+            setBlackTimeLeft(newState.blackTimeLeft);
             setSelectedPos(null);
 
             // Broadcast move over socket in online multiplayer
@@ -463,7 +493,7 @@ export const ChessGameScreen: React.FC = () => {
         }
       }
     },
-    [gameState, selectedPos, legalMovesForSelected, mode, aiColor, isOnlineMode, myColor, matchId],
+    [selectedPos, legalMovesForSelected, mode, aiColor, isOnlineMode, myColor, matchId],
   );
 
   // Pawn Promotion confirmation
@@ -481,6 +511,8 @@ export const ChessGameScreen: React.FC = () => {
     const { newState, result } = chessEngine.applyMove(gameState, promoMove);
     if (result.isValid) {
       setGameState(newState);
+      setWhiteTimeLeft(newState.whiteTimeLeft);
+      setBlackTimeLeft(newState.blackTimeLeft);
       setSelectedPos(null);
       setPendingPromotionMove(null);
       setIsPromotionVisible(false);
@@ -576,9 +608,9 @@ export const ChessGameScreen: React.FC = () => {
       : getInitials(playerName, 'ME');
 
   const topPlayerTime =
-    topPlayerColor === 'white' ? gameState.whiteTimeLeft : gameState.blackTimeLeft;
+    topPlayerColor === 'white' ? whiteTimeLeft : blackTimeLeft;
   const bottomPlayerTime =
-    bottomPlayerColor === 'white' ? gameState.whiteTimeLeft : gameState.blackTimeLeft;
+    bottomPlayerColor === 'white' ? whiteTimeLeft : blackTimeLeft;
 
   const topCaptured =
     topPlayerColor === 'white'
