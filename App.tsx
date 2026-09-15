@@ -16,6 +16,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { store, AppDispatch } from './src/redux/store';
 import { ThemeProvider, useTheme } from './src/theme/index';
 import RootNavigator from './src/navigation/RootNavigator';
+import { navigationRef } from './src/navigation/navigationRef';
 
 // ─── Inner App (access to theme + dispatch) ────────────────────────────────
 
@@ -34,7 +35,7 @@ const AppInner: React.FC = () => {
       <StatusBar
         barStyle={isDark ? 'light-content' : 'dark-content'}
       />
-      <NavigationContainer>
+      <NavigationContainer ref={navigationRef}>
         <RootNavigator />
       </NavigationContainer>
       {/* GlobalToast and ModalProvider go here after they are implemented */}

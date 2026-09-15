@@ -15,8 +15,6 @@ import {
 import { BOARD_THEMES } from '../../../../gameEngine/chess/chessConstants';
 import ChessPieceView from './ChessPieceView';
 
-const BOARD_PADDING = 6;
-
 interface ChessBoardViewProps {
   board: ChessBoard;
   selectedPos: ChessPosition | null;
@@ -44,10 +42,10 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
     const { width, height } = useWindowDimensions();
     const theme = BOARD_THEMES[themeKey] || BOARD_THEMES.woodEmerald;
 
-    // Responsive board size calculation fitting all screens
-    const maxAvailableWidth = Math.min(width - 5, height * 0.48, 420);
-    const squareSize = Math.floor((maxAvailableWidth - BOARD_PADDING * 2) / 8);
-    const boardTotalSize = squareSize * 8 + BOARD_PADDING * 2;
+    // Flush responsive board size without extra borders or padding
+    const maxAvailableWidth = Math.min(width, height * 0.52);
+    const squareSize = Math.floor(maxAvailableWidth / 8);
+    const boardTotalSize = squareSize * 8;
 
     // Fast lookup map for legal move target squares
     const legalMoveTargets = useMemo(() => {
@@ -74,11 +72,9 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
           {
             width: boardTotalSize,
             height: boardTotalSize,
-            backgroundColor: theme.boardBorder,
           },
         ]}
       >
-        {/* Clean 1px Inner Board Frame */}
         <View style={styles.boardInner}>
           {rowIndices.map((r, rIdx) => (
             <View key={`row_${r}`} style={styles.boardRow}>
@@ -93,8 +89,6 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
                   isLegalTarget &&
                   Boolean(legalMove?.capturedPiece || legalMove?.moveType === 'en_passant');
 
-                const isLastMoveFrom = lastMove?.from.row === r && lastMove?.from.col === c;
-                const isLastMoveTo = lastMove?.to.row === r && lastMove?.to.col === c;
                 const isKingInCheck =
                   isCheck &&
                   piece &&
@@ -102,13 +96,9 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
                   piece.color === currentTurn;
 
                 const baseSquareBg = isLight ? theme.lightSquare : theme.darkSquare;
-                const squareBg = isSelected
-                  ? theme.selectedSquare
-                  : isLastMoveTo || isLastMoveFrom
-                    ? theme.lastMove
-                    : isKingInCheck
-                      ? theme.checkWarning
-                      : baseSquareBg;
+                const squareBg = isKingInCheck
+                  ? theme.checkWarning
+                  : baseSquareBg;
 
                 return (
                   <TouchableOpacity
@@ -181,22 +171,10 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
 
 const styles = StyleSheet.create({
   outerFrame: {
-    padding: BOARD_PADDING,
-    borderRadius: 12,
     alignSelf: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
   },
   boardInner: {
-    borderRadius: 6,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.25)',
   },
   boardRow: {
     flexDirection: 'row',

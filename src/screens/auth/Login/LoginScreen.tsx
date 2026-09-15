@@ -19,6 +19,7 @@ import { useTheme } from '../../../theme';
 import { useAuth } from '../../../hooks/useAuth';
 import { ROUTES } from '../../../navigation/routes';
 import { AuthStackParamList } from '../../../navigation/types';
+import { resetToMain } from '../../../navigation/navigationRef';
 import AppInput from '../../../components/inputs/AppInput';
 import PasswordInput from '../../../components/inputs/PasswordInput';
 import PrimaryButton from '../../../components/buttons/PrimaryButton';
@@ -88,13 +89,17 @@ export const LoginScreen: React.FC = () => {
     const isEmail = trimmedIdentifier.includes('@');
     const isMobile = /^\+?[0-9]{7,15}$/.test(trimmedIdentifier);
 
-    await login({
+    const success = await login({
       identifier: trimmedIdentifier,
       email: isEmail ? trimmedIdentifier : undefined,
       mobile: isMobile ? trimmedIdentifier : undefined,
       username: !isEmail && !isMobile ? trimmedIdentifier : undefined,
       password,
     });
+
+    if (success) {
+      resetToMain();
+    }
   };
 
   const handleForgotPassword = () => {

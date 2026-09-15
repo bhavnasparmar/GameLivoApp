@@ -28,6 +28,9 @@ import ChessPlayerBar from '../components/ChessPlayerBar';
 import PawnPromotionModal from '../components/PawnPromotionModal';
 import ChessMoveHistoryBar from '../components/ChessMoveHistoryBar';
 import ChessActionModal, { ChessActionType } from '../components/ChessActionModal';
+import { socketService } from '../../../../services/socket/socketService';
+import { SOCKET_EVENTS } from '../../../../constants/socketConstants';
+import { useAppSelector } from '../../../../redux/hooks';
 
 const { width } = Dimensions.get('window');
 
@@ -37,15 +40,23 @@ export const ChessGameScreen: React.FC = () => {
   const route = useRoute<any>();
   const { theme, isDark } = useTheme();
 
+  const userProfile = useAppSelector((state) => state.user.profile);
+  const currentUserId = useAppSelector((state) => state.auth.userId) || 'guest_me';
+  const username = userProfile?.username || 'You';
+
   const matchId = route.params?.matchId || `chess_${Date.now()}`;
   const mode = route.params?.mode || 'computer'; // 'computer' | 'local' | 'random' | 'private'
   const difficulty = route.params?.difficulty || 'medium';
   const initialTimeSeconds = route.params?.timeSeconds || CHESS_DEFAULT_TIME_SECONDS;
+  const myColor: 'white' | 'black' = route.params?.myColor || 'white';
+  const opponentData = route.params?.opponent || null;
+
+  const isOnlineMode = mode === 'random' || mode === 'private';
 
   // Game Engine State
   const [gameState, setGameState] = useState<ChessGameState>(() =>
     chessEngine.getInitialState(
-      ['You', mode === 'computer' ? 'AI Bot' : 'Player 2'],
+      ['You', mode === 'computer' ? 'AI Bot' : opponentData?.name || 'Opponent'],
       initialTimeSeconds,
     ),
   );
@@ -56,14 +67,15 @@ export const ChessGameScreen: React.FC = () => {
     to: ChessPosition;
   } | null>(null);
   const [isPromotionVisible, setIsPromotionVisible] = useState(false);
-  const [isFlipped, setIsFlipped] = useState(false);
+  const [isFlipped, setIsFlipped] = useState(myColor === 'black');
   const [modalAction, setModalAction] = useState<ChessActionType | null>(null);
   const [isAiThinking, setIsAiThinking] = useState(false);
+  const [incomingDrawOffer, setIncomingDrawOffer] = useState<{ from: string } | null>(null);
 
   // Check alert banner animation
   const checkBannerOpacity = useRef(new Animated.Value(0)).current;
 
-  // Check if any move has been played yet (board can only be flipped before move 1)
+  // Check if any move has been played yet
   const isGameStarted = gameState.moveHistory.length > 0;
 
   const handleFlipBoard = () => {
@@ -76,6 +88,109 @@ export const ChessGameScreen: React.FC = () => {
     }
     setIsFlipped((prev) => !prev);
   };
+
+  // Socket multiplayer listeners
+  useEffect(() => {
+    if (!isOnlineMode) return;
+
+    if (!socketService.isConnected()) {
+      socketService.connect();
+    }
+
+    // Join match room
+    socketService.emit(SOCKET_EVENTS.GAME_STATE, { matchId });
+
+    // Handle remote player move
+    const handleRemoteMove = (data: any) => {
+      if (data.userId && data.userId === currentUserId) return;
+      const moveData = data.moveData?.move || data.moveData;
+      if (moveData && moveData.from && moveData.to) {
+        setGameState((prev) => {
+          const { newState } = chessEngine.applyMove(prev, moveData);
+          return newState;
+        });
+      }
+    };
+
+    // Handle draw offer from opponent
+    const handleDrawOffer = (data: { userId: string; username: string }) => {
+      Alert.alert(
+        '🤝 Draw Offered',
+        `${data.username || 'Opponent'} is offering a draw. Do you accept?`,
+        [
+          {
+            text: 'Decline',
+            style: 'cancel',
+            onPress: () => {
+              socketService.emit(SOCKET_EVENTS.MATCH_DRAW_RESPONSE, {
+                matchId,
+                accepted: false,
+              });
+            },
+          },
+          {
+            text: 'Accept Draw',
+            onPress: () => {
+              socketService.emit(SOCKET_EVENTS.MATCH_DRAW_RESPONSE, {
+                matchId,
+                accepted: true,
+              });
+            },
+          },
+        ]
+      );
+    };
+
+    // Handle draw decline
+    const handleDrawResponse = (data: { accepted: boolean }) => {
+      if (!data.accepted) {
+        Alert.alert('Draw Declined', 'Opponent declined the draw offer.');
+      }
+    };
+
+    // Handle game over from backend
+    const handleRemoteGameOver = (data: { winnerId: string; reason?: string }) => {
+      const isDraw = data.winnerId === 'draw';
+      const isWinner = data.winnerId === currentUserId;
+      const winningColor = isDraw
+        ? 'draw'
+        : isWinner
+        ? myColor
+        : myColor === 'white'
+        ? 'black'
+        : 'white';
+
+      setGameState((prev) => ({
+        ...prev,
+        gameStatus: isDraw ? 'draw_agreement' : 'checkmate',
+        winner: winningColor,
+        winReason: data.reason || (isDraw ? 'Draw agreed' : `${data.winnerId} won`),
+      }));
+    };
+
+    // Handle player disconnected
+    const handlePlayerDisconnected = (data: { username?: string }) => {
+      Alert.alert(
+        'Player Disconnected',
+        `${data.username || 'Opponent'} has disconnected.`,
+        [{ text: 'OK' }]
+      );
+    };
+
+    socketService.on(SOCKET_EVENTS.GAME_MOVE, handleRemoteMove);
+    socketService.on(SOCKET_EVENTS.MATCH_DRAW_OFFER, handleDrawOffer);
+    socketService.on(SOCKET_EVENTS.MATCH_DRAW_RESPONSE, handleDrawResponse);
+    socketService.on(SOCKET_EVENTS.GAME_OVER, handleRemoteGameOver);
+    socketService.on(SOCKET_EVENTS.PLAYER_DISCONNECT, handlePlayerDisconnected);
+
+    return () => {
+      socketService.off(SOCKET_EVENTS.GAME_MOVE);
+      socketService.off(SOCKET_EVENTS.MATCH_DRAW_OFFER);
+      socketService.off(SOCKET_EVENTS.MATCH_DRAW_RESPONSE);
+      socketService.off(SOCKET_EVENTS.GAME_OVER);
+      socketService.off(SOCKET_EVENTS.PLAYER_DISCONNECT);
+    };
+  }, [isOnlineMode, matchId, currentUserId, myColor]);
 
   // Clock countdown timer
   useEffect(() => {
@@ -136,22 +251,48 @@ export const ChessGameScreen: React.FC = () => {
   // Handle Game Over Navigation to ChessResult
   useEffect(() => {
     if (gameState.gameStatus !== 'in_progress' && gameState.gameStatus !== 'check') {
+      // If online mode, notify backend
+      if (isOnlineMode) {
+        socketService.emit(SOCKET_EVENTS.GAME_OVER, {
+          matchId,
+          winnerId:
+            gameState.winner === 'draw'
+              ? 'draw'
+              : gameState.winner === myColor
+              ? currentUserId
+              : opponentData?.userId || 'opponent',
+          reason: gameState.winReason,
+        });
+      }
+
       const timeout = setTimeout(() => {
         navigation.replace(ROUTES.CHESS_RESULT, {
           matchId,
           gameState,
           mode,
           difficulty,
+          myColor,
         });
       }, 1200);
       return () => clearTimeout(timeout);
     }
-  }, [gameState.gameStatus, gameState, matchId, mode, difficulty, navigation]);
+  }, [
+    gameState.gameStatus,
+    gameState,
+    matchId,
+    mode,
+    difficulty,
+    navigation,
+    isOnlineMode,
+    myColor,
+    currentUserId,
+    opponentData,
+  ]);
 
   const humanColor = isFlipped ? 'black' : 'white';
   const aiColor = isFlipped ? 'white' : 'black';
 
-  // AI Opponent Move Trigger
+  // AI Opponent Move Trigger (for VS Computer)
   useEffect(() => {
     if (
       mode === 'computer' &&
@@ -188,12 +329,18 @@ export const ChessGameScreen: React.FC = () => {
   const handleSquarePress = useCallback(
     (pos: ChessPosition) => {
       if (gameState.gameStatus !== 'in_progress' && gameState.gameStatus !== 'check') return;
-      if (mode === 'computer' && gameState.currentTurn === aiColor) return; // Wait for AI
+
+      // In VS Computer: block if AI's turn
+      if (mode === 'computer' && gameState.currentTurn === aiColor) return;
+
+      // In Online Mode: block if not user's turn
+      if (isOnlineMode && gameState.currentTurn !== myColor) return;
 
       const clickedPiece = gameState.board[pos.row][pos.col];
 
       // 1. If clicking own piece, select it
       if (clickedPiece && clickedPiece.color === gameState.currentTurn) {
+        if (isOnlineMode && clickedPiece.color !== myColor) return;
         setSelectedPos(pos);
         return;
       }
@@ -218,11 +365,25 @@ export const ChessGameScreen: React.FC = () => {
             return;
           }
 
-          // Apply move
+          // Apply move locally
           const { newState, result } = chessEngine.applyMove(gameState, legalMove);
           if (result.isValid) {
             setGameState(newState);
             setSelectedPos(null);
+
+            // Broadcast move over socket in online multiplayer
+            if (isOnlineMode) {
+              socketService.emit(SOCKET_EVENTS.GAME_MOVE, {
+                matchId,
+                moveData: {
+                  move: legalMove,
+                  board: newState.board,
+                  currentTurn: newState.currentTurn,
+                  whiteTimeLeft: newState.whiteTimeLeft,
+                  blackTimeLeft: newState.blackTimeLeft,
+                },
+              });
+            }
           }
         } else {
           // Deselect if clicking an invalid square
@@ -230,7 +391,7 @@ export const ChessGameScreen: React.FC = () => {
         }
       }
     },
-    [gameState, selectedPos, legalMovesForSelected, mode, aiColor],
+    [gameState, selectedPos, legalMovesForSelected, mode, aiColor, isOnlineMode, myColor, matchId],
   );
 
   // Pawn Promotion confirmation
@@ -251,14 +412,32 @@ export const ChessGameScreen: React.FC = () => {
       setSelectedPos(null);
       setPendingPromotionMove(null);
       setIsPromotionVisible(false);
+
+      if (isOnlineMode) {
+        socketService.emit(SOCKET_EVENTS.GAME_MOVE, {
+          matchId,
+          moveData: {
+            move: promoMove,
+            board: newState.board,
+            currentTurn: newState.currentTurn,
+            whiteTimeLeft: newState.whiteTimeLeft,
+            blackTimeLeft: newState.blackTimeLeft,
+          },
+        });
+      }
     }
   };
 
   // Resign & Draw actions
   const handleConfirmAction = () => {
     if (modalAction === 'resign') {
-      const resigningColor = gameState.currentTurn;
+      const resigningColor = isOnlineMode ? myColor : gameState.currentTurn;
       const winningColor = resigningColor === 'white' ? 'black' : 'white';
+
+      if (isOnlineMode) {
+        socketService.emit(SOCKET_EVENTS.MATCH_RESIGN, { matchId });
+      }
+
       setGameState((prev) => ({
         ...prev,
         gameStatus: 'resigned',
@@ -266,12 +445,17 @@ export const ChessGameScreen: React.FC = () => {
         winReason: `${resigningColor.toUpperCase()} resigned. ${winningColor.toUpperCase()} wins!`,
       }));
     } else if (modalAction === 'draw') {
-      setGameState((prev) => ({
-        ...prev,
-        gameStatus: 'draw_agreement',
-        winner: 'draw',
-        winReason: 'Draw agreed by both players 🤝',
-      }));
+      if (isOnlineMode) {
+        socketService.emit(SOCKET_EVENTS.MATCH_DRAW_OFFER, { matchId });
+        Alert.alert('Draw Offer Sent', 'Waiting for opponent to accept or decline 🤝');
+      } else {
+        setGameState((prev) => ({
+          ...prev,
+          gameStatus: 'draw_agreement',
+          winner: 'draw',
+          winReason: 'Draw agreed by both players 🤝',
+        }));
+      }
     }
     setModalAction(null);
   };
@@ -287,18 +471,16 @@ export const ChessGameScreen: React.FC = () => {
       ? topPlayerColor === 'white'
         ? 'Player 2 (White)'
         : 'Player 2 (Black)'
-      : topPlayerColor === 'white'
-      ? (mode === 'computer' ? `AI Bot (${difficulty.toUpperCase()})` : 'Opponent')
-      : (mode === 'computer' ? `AI Bot (${difficulty.toUpperCase()})` : 'Opponent');
+      : mode === 'computer'
+      ? `AI Bot (${difficulty.toUpperCase()})`
+      : opponentData?.name || 'Opponent';
 
   const bottomPlayerName =
     mode === 'local'
       ? bottomPlayerColor === 'white'
         ? 'Player 1 (White)'
         : 'Player 1 (Black)'
-      : bottomPlayerColor === 'white'
-      ? 'You'
-      : 'You';
+      : username;
 
   const topAvatarText =
     mode === 'local'
@@ -335,6 +517,10 @@ export const ChessGameScreen: React.FC = () => {
       ? materialScore.whiteAdvantage
       : materialScore.blackAdvantage;
 
+  const isMyTurn = isOnlineMode
+    ? gameState.currentTurn === myColor
+    : true;
+
   return (
     <View style={[styles.container, { backgroundColor: isDark ? '#08100C' : '#F2F7F4' }]}>
       <StatusBar barStyle="light-content" />
@@ -355,11 +541,21 @@ export const ChessGameScreen: React.FC = () => {
 
           <View style={styles.titleCenter}>
             <Text style={styles.headerTitle}>
-              {mode === 'computer' ? `Chess vs AI (${difficulty})` : 'Chess Match 1v1'}
+              {mode === 'computer'
+                ? `Chess vs AI (${difficulty})`
+                : mode === 'random'
+                ? 'Quick Match 1v1'
+                : mode === 'private'
+                ? 'Friend Match 1v1'
+                : 'Pass & Play 1v1'}
             </Text>
             <Text style={styles.headerSub}>
               {gameState.gameStatus === 'check'
                 ? '⚠️ CHECK!'
+                : isOnlineMode
+                ? isMyTurn
+                  ? 'Your Turn ♟️'
+                  : "Opponent's Turn..."
                 : gameState.currentTurn === 'white'
                 ? "White's Turn ♔"
                 : "Black's Turn ♚"}
@@ -391,7 +587,7 @@ export const ChessGameScreen: React.FC = () => {
           name={topPlayerName}
           avatarText={topAvatarText}
           color={topPlayerColor}
-          rating={1380}
+          rating={opponentData?.rating || 1380}
           isCurrentTurn={gameState.currentTurn === topPlayerColor}
           timeLeftSeconds={topPlayerTime}
           capturedPieces={topCaptured}
@@ -424,7 +620,7 @@ export const ChessGameScreen: React.FC = () => {
           name={bottomPlayerName}
           avatarText={bottomAvatarText}
           color={bottomPlayerColor}
-          rating={bottomPlayerColor === 'white' ? 1420 : 1380}
+          rating={1420}
           isCurrentTurn={gameState.currentTurn === bottomPlayerColor}
           timeLeftSeconds={bottomPlayerTime}
           capturedPieces={bottomCaptured}

@@ -26,10 +26,10 @@ export const ChessResultScreen: React.FC = () => {
   const gameState: ChessGameState = route.params?.gameState || {};
   const mode = route.params?.mode || 'computer';
   const difficulty = route.params?.difficulty || 'medium';
+  const myColor = route.params?.myColor || 'white';
 
   const isDraw = gameState.winner === 'draw';
-  const isWhiteWin = gameState.winner === 'white';
-  const isPlayerWin = isWhiteWin; // Player is always White in computer/random modes
+  const isPlayerWin = gameState.winner === myColor;
 
   const handleRematch = () => {
     navigation.replace(ROUTES.CHESS_GAME, {
