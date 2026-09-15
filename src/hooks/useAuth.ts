@@ -6,6 +6,13 @@ import { fetchProfileSuccess, clearProfile } from '../redux/slices/userSlice';
 import { authService } from '../services/auth/authService';
 import { LoginRequest, RegisterRequest } from '../types/auth';
 
+import { resetToAuth } from '../navigation/navigationRef';
+import { storageService } from '../services/storage/storageService';
+import { STORAGE_KEYS } from '../constants/storageKeys';
+import apiClient from '../services/api/apiClient';
+import { API_ENDPOINTS } from '../services/api/apiEndpoints';
+import { User } from '../types/user';
+
 // ─── useAuth Hook ─────────────────────────────────────────────────────────────
 
 export const useAuth = () => {
@@ -16,6 +23,29 @@ export const useAuth = () => {
 
   const resetError = useCallback(() => {
     dispatch(clearError());
+  }, [dispatch]);
+
+  // ── Restore / Check Session on App Start ──────────────────────────────────
+  const checkAuth = useCallback(async (): Promise<boolean> => {
+    try {
+      const token = await storageService.get<string>(STORAGE_KEYS.ACCESS_TOKEN);
+      if (!token) return false;
+
+      const userRes = await apiClient.get<User>(API_ENDPOINTS.USER.PROFILE);
+      if (userRes) {
+        dispatch(fetchProfileSuccess(userRes as any));
+        dispatch(
+          loginSuccess({
+            tokens: { accessToken: token, refreshToken: '', expiresAt: 0 },
+            userId: (userRes as any).id || 'user',
+          }),
+        );
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
   }, [dispatch]);
 
   // ── Login ──────────────────────────────────────────────────────────────────
@@ -162,7 +192,8 @@ export const useAuth = () => {
     await authService.logout();
     dispatch(logoutAction());
     dispatch(clearProfile());
+    resetToAuth();
   }, [dispatch]);
 
-  return { isLoggedIn, isLoading, error, login, register, verifyRegistrationOtp, forgotPassword, logout, resetError };
+  return { isLoggedIn, isLoading, error, login, register, verifyRegistrationOtp, forgotPassword, logout, resetError, checkAuth };
 };

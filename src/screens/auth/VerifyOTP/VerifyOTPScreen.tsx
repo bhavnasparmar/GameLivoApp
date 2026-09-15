@@ -22,6 +22,7 @@ import { useTheme } from '../../../theme';
 import { useAuth } from '../../../hooks/useAuth';
 import { ROUTES } from '../../../navigation/routes';
 import { AuthStackParamList } from '../../../navigation/types';
+import { resetToMain } from '../../../navigation/navigationRef';
 
 const { width } = Dimensions.get('window');
 
@@ -176,7 +177,9 @@ export const VerifyOTPScreen: React.FC = () => {
         if (result.success || isDevBypass) {
           setVerifySuccess(true);
           Animated.spring(successScale, { toValue: 1, tension: 50, friction: 7, useNativeDriver: true }).start();
-          // isLoggedIn will become true → RootNavigator auto-switches to MainNavigator
+          setTimeout(() => {
+            resetToMain();
+          }, 800);
         } else {
           triggerShake();
           setOtp(Array(OTP_LENGTH).fill(''));
