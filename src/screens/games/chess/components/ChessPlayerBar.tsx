@@ -1,5 +1,5 @@
 import React, { useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import { View, Text, StyleSheet, Animated, Easing } from 'react-native';
 import FastImage from 'react-native-fast-image';
 import LinearGradient from 'react-native-linear-gradient';
 import { ChessColor, ChessPiece } from '../../../../gameEngine/chess/chessTypes';
@@ -17,6 +17,7 @@ interface ChessPlayerBarProps {
   materialAdvantage?: number;
   isDark?: boolean;
   statusText?: string;
+  isMe?: boolean;
 }
 
 export const ChessPlayerBar: React.FC<ChessPlayerBarProps> = React.memo(
@@ -32,11 +33,12 @@ export const ChessPlayerBar: React.FC<ChessPlayerBarProps> = React.memo(
     materialAdvantage = 0,
     isDark = true,
     statusText,
+    isMe = false,
   }) => {
     const isWhite = color === 'white';
     const pulseAnim = useRef(new Animated.Value(0)).current;
 
-    // Continuous smooth turn pulse animation when it is active turn
+    // Smooth continuous breathing pulse for active player
     useEffect(() => {
       let animation: Animated.CompositeAnimation | null = null;
       if (isCurrentTurn) {
@@ -45,11 +47,13 @@ export const ChessPlayerBar: React.FC<ChessPlayerBarProps> = React.memo(
             Animated.timing(pulseAnim, {
               toValue: 1,
               duration: 900,
+              easing: Easing.inOut(Easing.quad),
               useNativeDriver: true,
             }),
             Animated.timing(pulseAnim, {
               toValue: 0,
               duration: 900,
+              easing: Easing.inOut(Easing.quad),
               useNativeDriver: true,
             }),
           ]),
@@ -73,85 +77,143 @@ export const ChessPlayerBar: React.FC<ChessPlayerBarProps> = React.memo(
 
     const isLowTime = timeLeftSeconds > 0 && timeLeftSeconds <= 30;
 
+    // Turn badge text
+    const turnBadgeLabel = isCurrentTurn
+      ? statusText || (isMe ? 'YOUR TURN' : "OPPONENT'S TURN")
+      : '';
+
     return (
       <View
         style={[
           styles.container,
           {
-            backgroundColor: isCurrentTurn
-              ? isDark
-                ? '#16241B'
-                : '#EAF7EE'
-              : isDark
-              ? '#0D1410'
-              : '#F7FBF8',
+            opacity: isCurrentTurn ? 1 : 0.65,
             borderColor: isCurrentTurn
-              ? '#22C55E'
+              ? isLowTime
+                ? '#EF4444'
+                : '#10B981'
               : isDark
-              ? 'rgba(255,255,255,0.06)'
-              : '#E0E8E2',
+              ? 'rgba(255, 255, 255, 0.08)'
+              : '#E2E8F0',
           },
-          isCurrentTurn && styles.activeBarGlow,
+          isCurrentTurn && (isDark ? styles.activeGlowDark : styles.activeGlowLight),
         ]}
       >
-        {/* Animated breathing glow border on active turn */}
+        {/* Active Player Rich Gradient Background */}
+        {isCurrentTurn ? (
+          <LinearGradient
+            colors={
+              isDark
+                ? isLowTime
+                  ? ['#3B1212', '#1C0808']
+                  : ['#0E3824', '#061D13']
+                : isLowTime
+                ? ['#FEE2E2', '#FEF2F2']
+                : ['#DCFCE7', '#F0FDF4']
+            }
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={StyleSheet.absoluteFill}
+          />
+        ) : (
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              { backgroundColor: isDark ? '#0F1714' : '#FFFFFF' },
+            ]}
+          />
+        )}
+
+        {/* Pulsing Left Accent Glow Bar */}
         {isCurrentTurn && (
           <Animated.View
-            pointerEvents="none"
             style={[
-              styles.activeGlowOverlay,
+              styles.activeIndicatorBar,
               {
+                backgroundColor: isLowTime ? '#EF4444' : '#10B981',
                 opacity: pulseAnim.interpolate({
                   inputRange: [0, 1],
-                  outputRange: [0.35, 0.9],
+                  outputRange: [0.75, 1],
                 }),
+                transform: [
+                  {
+                    scaleY: pulseAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.9, 1.05],
+                    }),
+                  },
+                ],
               },
             ]}
           />
         )}
 
-        {/* Left: Avatar & Info */}
+        {/* Left: Avatar & Player Details */}
         <View style={styles.playerInfoRow}>
           <View style={styles.avatarWrap}>
-            {/* Animated Radar Pulse Ring on Avatar */}
+            {/* Animated Radar Pulse Rings around Avatar on Active Turn */}
             {isCurrentTurn && (
-              <Animated.View
-                style={[
-                  styles.avatarPulseRing,
-                  {
-                    opacity: pulseAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.4, 0.85],
-                    }),
-                    transform: [
-                      {
-                        scale: pulseAnim.interpolate({
-                          inputRange: [0, 1],
-                          outputRange: [1, 1.14],
-                        }),
-                      },
-                    ],
-                  },
-                ]}
-              />
+              <>
+                <Animated.View
+                  style={[
+                    styles.avatarHaloOuter,
+                    {
+                      borderColor: isLowTime ? '#EF4444' : '#10B981',
+                      opacity: pulseAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.6, 0.1],
+                      }),
+                      transform: [
+                        {
+                          scale: pulseAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [1.02, 1.25],
+                          }),
+                        },
+                      ],
+                    },
+                  ]}
+                />
+                <Animated.View
+                  style={[
+                    styles.avatarHaloInner,
+                    {
+                      borderColor: isLowTime ? '#EF4444' : '#34D399',
+                      opacity: pulseAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.5, 0.9],
+                      }),
+                    },
+                  ]}
+                />
+              </>
             )}
+
             <LinearGradient
               colors={
                 isWhite
-                  ? ['#F0C64A', '#D4A017', '#9C6C0C']
-                  : ['#4A5260', '#252B35', '#14181F']
+                  ? ['#F59E0B', '#D97706', '#92400E']
+                  : ['#475569', '#1E293B', '#0F172A']
               }
               style={[
                 styles.avatar,
-                isCurrentTurn && styles.activeAvatarGlow,
+                isCurrentTurn && {
+                  borderColor: isLowTime ? '#EF4444' : '#10B981',
+                  borderWidth: 2,
+                },
               ]}
             >
               <Text style={styles.avatarText}>{avatarText}</Text>
             </LinearGradient>
+
+            {/* King Piece Badge */}
             <View
               style={[
                 styles.colorBadge,
-                { backgroundColor: isWhite ? '#FFFFFF' : '#1C1F24' },
+                {
+                  backgroundColor: isWhite ? '#FFFFFF' : '#1E293B',
+                  borderColor: isDark ? '#0A2016' : '#FFFFFF',
+                },
               ]}
             >
               <FastImage
@@ -162,6 +224,7 @@ export const ChessPlayerBar: React.FC<ChessPlayerBarProps> = React.memo(
             </View>
           </View>
 
+          {/* Name & Captured Pieces Block */}
           <View style={styles.nameBlock}>
             <View style={styles.nameHeaderRow}>
               <Text
@@ -171,10 +234,10 @@ export const ChessPlayerBar: React.FC<ChessPlayerBarProps> = React.memo(
                     color: isCurrentTurn
                       ? isDark
                         ? '#FFFFFF'
-                        : '#0B291A'
+                        : '#064E3B'
                       : isDark
-                      ? '#869A8E'
-                      : '#6B7F74',
+                      ? '#94A3B8'
+                      : '#334155',
                     fontWeight: isCurrentTurn ? '800' : '600',
                   },
                 ]}
@@ -182,7 +245,19 @@ export const ChessPlayerBar: React.FC<ChessPlayerBarProps> = React.memo(
               >
                 {name}
               </Text>
-              <View style={styles.ratingBadge}>
+              <View
+                style={[
+                  styles.ratingBadge,
+                  {
+                    backgroundColor: isDark
+                      ? 'rgba(245, 158, 11, 0.18)'
+                      : 'rgba(245, 158, 11, 0.12)',
+                    borderColor: isDark
+                      ? 'rgba(245, 158, 11, 0.45)'
+                      : 'rgba(245, 158, 11, 0.3)',
+                  },
+                ]}
+              >
                 <Text style={styles.ratingText}>{rating}</Text>
               </View>
             </View>
@@ -209,54 +284,82 @@ export const ChessPlayerBar: React.FC<ChessPlayerBarProps> = React.memo(
           </View>
         </View>
 
-        {/* Right: Clock & Status */}
+        {/* Right: Modern Clock & Prominent Active Turn Badge */}
         <View style={styles.rightCol}>
+          {/* Active / Inactive Timer Pill */}
           <View
             style={[
               styles.timerPill,
               isCurrentTurn
                 ? isLowTime
                   ? styles.timerPillLowTime
-                  : styles.timerPillActive
-                : styles.timerPillInactive,
+                  : isDark
+                  ? styles.timerPillActiveDark
+                  : styles.timerPillActiveLight
+                : isDark
+                ? styles.timerPillInactiveDark
+                : styles.timerPillInactiveLight,
             ]}
           >
-            <Text style={styles.timerIcon}>{isLowTime ? '⚠️' : '⏱️'}</Text>
+            <Text style={styles.timerIcon}>{isLowTime ? '🔥' : '⏱️'}</Text>
             <Text
               style={[
                 styles.timerText,
                 isCurrentTurn
                   ? isLowTime
                     ? styles.timerTextLowTime
-                    : styles.timerTextActive
-                  : styles.timerTextInactive,
+                    : isDark
+                    ? styles.timerTextActiveDark
+                    : styles.timerTextActiveLight
+                  : isDark
+                  ? styles.timerTextInactiveDark
+                  : styles.timerTextInactiveLight,
               ]}
             >
               {formatTime(timeLeftSeconds)}
             </Text>
           </View>
-          <View
+
+          {/* High Visibility Turn Status Badge */}
+          <Animated.View
             style={[
-              styles.turnBadge,
+              styles.turnBadgeContainer,
               {
-                backgroundColor: isCurrentTurn
-                  ? 'rgba(34, 197, 94, 0.18)'
-                  : 'transparent',
-                borderColor: isCurrentTurn
-                  ? 'rgba(34, 197, 94, 0.35)'
-                  : 'transparent',
+                opacity: isCurrentTurn ? 1 : 0,
+                transform: [
+                  {
+                    scale: isCurrentTurn
+                      ? pulseAnim.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [1, 1.05],
+                        })
+                      : 1,
+                  },
+                ],
               },
             ]}
           >
-            {isCurrentTurn && (
-              <View style={styles.dotPulseWrap}>
+            <LinearGradient
+              colors={
+                isLowTime
+                  ? ['#EF4444', '#DC2626']
+                  : isMe
+                  ? ['#10B981', '#059669']
+                  : ['#3B82F6', '#2563EB']
+              }
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.turnBadgeGradient}
+            >
+              {/* Radar Dot */}
+              <View style={styles.turnDotRadarWrap}>
                 <Animated.View
                   style={[
-                    styles.turnDotRadar,
+                    styles.turnDotRadarOuter,
                     {
                       opacity: pulseAnim.interpolate({
                         inputRange: [0, 1],
-                        outputRange: [0.7, 0.1],
+                        outputRange: [0.7, 0],
                       }),
                       transform: [
                         {
@@ -269,26 +372,11 @@ export const ChessPlayerBar: React.FC<ChessPlayerBarProps> = React.memo(
                     },
                   ]}
                 />
-                <View style={styles.turnDotActive} />
+                <View style={styles.turnDotRadarInner} />
               </View>
-            )}
-            <Text
-              style={[
-                styles.statusSub,
-                {
-                  color: isCurrentTurn
-                    ? '#22C55E'
-                    : isDark
-                    ? '#5C7A6A'
-                    : '#8A9E92',
-                  opacity: statusText ? 1 : isCurrentTurn ? 1 : 0,
-                  fontWeight: isCurrentTurn ? '800' : '600',
-                },
-              ]}
-            >
-              {statusText || (isCurrentTurn ? 'TURN' : '')}
-            </Text>
-          </View>
+              <Text style={styles.turnBadgeText}>{turnBadgeLabel}</Text>
+            </LinearGradient>
+          </Animated.View>
         </View>
       </View>
     );
@@ -297,102 +385,108 @@ export const ChessPlayerBar: React.FC<ChessPlayerBarProps> = React.memo(
 
 const styles = StyleSheet.create({
   container: {
+    position: 'relative',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 12,
-    height: 60,
-    borderRadius: 14,
+    height: 64,
     borderWidth: 1.5,
+    borderRadius: 16,
     marginHorizontal: 14,
     marginVertical: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
+    overflow: 'hidden',
   },
-  activeBarGlow: {
-    borderColor: '#22C55E',
-    shadowColor: '#22C55E',
-    shadowOpacity: 0.55,
+  activeGlowDark: {
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
     shadowRadius: 10,
     elevation: 8,
   },
-  activeGlowOverlay: {
+  activeGlowLight: {
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  activeIndicatorBar: {
     position: 'absolute',
-    top: -2,
-    bottom: -2,
-    left: -2,
-    right: -2,
-    borderRadius: 15,
-    borderWidth: 2,
-    borderColor: '#22C55E',
+    left: 0,
+    top: 6,
+    bottom: 6,
+    width: 4.5,
+    borderTopRightRadius: 4,
+    borderBottomRightRadius: 4,
+    zIndex: 10,
   },
   playerInfoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    marginRight: 10,
+    marginRight: 8,
+    paddingLeft: 4,
+    zIndex: 5,
   },
   avatarWrap: {
     position: 'relative',
     marginRight: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  avatarPulseRing: {
+  avatarHaloOuter: {
     position: 'absolute',
     top: -4,
     bottom: -4,
     left: -4,
     right: -4,
-    borderRadius: 16,
+    borderRadius: 18,
     borderWidth: 2,
-    borderColor: '#22C55E',
+  },
+  avatarHaloInner: {
+    position: 'absolute',
+    top: -2,
+    bottom: -2,
+    left: -2,
+    right: -2,
+    borderRadius: 16,
+    borderWidth: 1.5,
   },
   avatar: {
     width: 42,
     height: 42,
-    borderRadius: 13,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  activeAvatarGlow: {
-    borderColor: '#22C55E',
-    shadowColor: '#22C55E',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
   },
   avatarText: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     color: '#FFFFFF',
+    letterSpacing: 0.3,
   },
   colorBadge: {
     position: 'absolute',
     bottom: -3,
     right: -3,
-    width: 17,
-    height: 17,
-    borderRadius: 8.5,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: '#141A16',
+    zIndex: 6,
   },
   kingBadgeImg: {
-    width: 13,
-    height: 13,
-  },
-  capturedPieceImg: {
-    width: 16,
-    height: 16,
-    marginHorizontal: 0.5,
+    width: 12,
+    height: 12,
   },
   nameBlock: {
     flex: 1,
+    justifyContent: 'center',
   },
   nameHeaderRow: {
     flexDirection: 'row',
@@ -400,34 +494,33 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   playerName: {
-    fontSize: 14,
-    maxWidth: 110,
+    fontSize: 14.5,
+    maxWidth: 120,
+    letterSpacing: 0.2,
   },
   ratingBadge: {
-    backgroundColor: 'rgba(212, 160, 23, 0.18)',
-    paddingHorizontal: 5,
+    paddingHorizontal: 5.5,
     paddingVertical: 1.5,
-    borderRadius: 5,
+    borderRadius: 6,
     borderWidth: 0.8,
-    borderColor: 'rgba(212, 160, 23, 0.4)',
   },
   ratingText: {
     fontSize: 10,
-    fontWeight: '800',
-    color: '#F0C64A',
+    fontWeight: '700',
+    color: '#D97706',
   },
   capturedRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 2,
-    gap: 2,
+    marginTop: 3,
+    gap: 1.5,
   },
-  capturedGlyph: {
-    fontSize: 13,
-    lineHeight: 15,
+  capturedPieceImg: {
+    width: 15,
+    height: 15,
   },
   advantageBadge: {
-    backgroundColor: '#1F9D55',
+    backgroundColor: '#10B981',
     paddingHorizontal: 4,
     paddingVertical: 1,
     borderRadius: 4,
@@ -440,78 +533,109 @@ const styles = StyleSheet.create({
   },
   rightCol: {
     alignItems: 'flex-end',
+    justifyContent: 'center',
+    zIndex: 5,
+    gap: 4,
   },
   timerPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 11,
-    paddingVertical: 4,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: 14,
+    borderWidth: 1.2,
+    gap: 4,
   },
-  timerPillActive: {
-    backgroundColor: 'rgba(34, 197, 94, 0.18)',
-    borderColor: '#22C55E',
+  timerPillActiveDark: {
+    backgroundColor: 'rgba(16, 185, 129, 0.25)',
+    borderColor: '#10B981',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  timerPillInactive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  timerPillActiveLight: {
+    backgroundColor: '#D1FAE5',
+    borderColor: '#10B981',
+  },
+  timerPillInactiveDark: {
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
     borderColor: 'rgba(255, 255, 255, 0.08)',
   },
+  timerPillInactiveLight: {
+    backgroundColor: '#F1F5F9',
+    borderColor: '#E2E8F0',
+  },
   timerPillLowTime: {
-    backgroundColor: 'rgba(230, 72, 58, 0.25)',
-    borderColor: '#E6483A',
+    backgroundColor: 'rgba(239, 68, 68, 0.25)',
+    borderColor: '#EF4444',
   },
   timerIcon: {
-    fontSize: 12,
+    fontSize: 11.5,
   },
   timerText: {
-    fontSize: 14.5,
+    fontSize: 14,
     fontWeight: '800',
     fontVariant: ['tabular-nums'],
+    letterSpacing: 0.5,
   },
-  timerTextActive: {
-    color: '#22C55E',
+  timerTextActiveDark: {
+    color: '#34D399',
   },
-  timerTextInactive: {
-    color: '#869A8E',
+  timerTextActiveLight: {
+    color: '#065F46',
+  },
+  timerTextInactiveDark: {
+    color: '#64748B',
+  },
+  timerTextInactiveLight: {
+    color: '#64748B',
   },
   timerTextLowTime: {
-    color: '#FF6A5C',
+    color: '#EF4444',
   },
-  turnBadge: {
+  turnBadgeContainer: {
+    borderRadius: 8,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  turnBadgeGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 8,
-    marginTop: 2,
+    paddingHorizontal: 7,
+    paddingVertical: 2.5,
     gap: 4,
-    borderWidth: 0.8,
   },
-  dotPulseWrap: {
+  turnDotRadarWrap: {
     position: 'relative',
-    width: 10,
-    height: 10,
+    width: 6,
+    height: 6,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  turnDotRadar: {
+  turnDotRadarOuter: {
     position: 'absolute',
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: '#22C55E',
-  },
-  turnDotActive: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: '#22C55E',
+    backgroundColor: '#FFFFFF',
   },
-  statusSub: {
-    fontSize: 10,
-    letterSpacing: 0.5,
+  turnDotRadarInner: {
+    width: 4.5,
+    height: 4.5,
+    borderRadius: 2.25,
+    backgroundColor: '#FFFFFF',
+  },
+  turnBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: 0.6,
   },
 });
 

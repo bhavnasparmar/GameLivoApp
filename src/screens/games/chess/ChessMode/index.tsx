@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
+  TextInput,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
@@ -15,6 +16,7 @@ import { useTheme } from '../../../../theme';
 import { ROUTES } from '../../../../navigation/routes';
 import { ChessDifficulty, ChessTimePreset } from '../../../../gameEngine/chess/chessTypes';
 import { CHESS_TIME_PRESETS } from '../../../../gameEngine/chess/chessConstants';
+import { useAppSelector } from '../../../../redux/hooks';
 
 const { width } = Dimensions.get('window');
 
@@ -110,6 +112,9 @@ export const ChessModeScreen: React.FC = () => {
   const route = useRoute<any>();
   const { theme, isDark } = useTheme();
 
+  const userProfile = useAppSelector((state) => state.user.profile);
+  const loggedInName = userProfile?.name || userProfile?.username || 'Player 1';
+
   const initialMode = route.params?.initialMode || 'computer';
   const [activeTab, setActiveTab] = useState<ActiveTab>(
     initialMode === 'rules' ? 'rules' : 'setup',
@@ -117,8 +122,25 @@ export const ChessModeScreen: React.FC = () => {
   const [gameMode, setGameMode] = useState<'computer' | 'local'>(
     initialMode === 'local' ? 'local' : 'computer',
   );
+  const [player1Name, setPlayer1Name] = useState(loggedInName);
+  const [player2Name, setPlayer2Name] = useState('Player 2');
   const [selectedDifficulty, setSelectedDifficulty] = useState<ChessDifficulty>('medium');
   const [selectedTimePreset, setSelectedTimePreset] = useState<ChessTimePreset>(CHESS_TIME_PRESETS[2]); // 5 min Rapid
+
+  useEffect(() => {
+    if (loggedInName && player1Name === 'Player 1') {
+      setPlayer1Name(loggedInName);
+    }
+  }, [loggedInName]);
+
+  const getInitials = (str: string, fallback: string) => {
+    if (!str || str === 'Player 1' || str === 'Player 2') return fallback;
+    const parts = str.trim().split(/\s+/);
+    if (parts.length >= 2 && parts[0] && parts[1]) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return str.slice(0, 2).toUpperCase() || fallback;
+  };
 
   const handleStartGame = () => {
     navigation.navigate(ROUTES.CHESS_GAME, {
@@ -126,6 +148,8 @@ export const ChessModeScreen: React.FC = () => {
       mode: gameMode,
       difficulty: selectedDifficulty,
       timeSeconds: selectedTimePreset.seconds,
+      player1Name: player1Name.trim() || loggedInName,
+      player2Name: player2Name.trim() || 'Player 2',
     });
   };
 
@@ -277,6 +301,101 @@ export const ChessModeScreen: React.FC = () => {
                     </TouchableOpacity>
                   );
                 })}
+              </View>
+            </>
+          )}
+
+          {/* Players Setup for Pass & Play */}
+          {gameMode === 'local' && (
+            <>
+              <View style={styles.sectionHeader}>
+                <Text style={[styles.sectionTitle, { color: isDark ? '#D4A017' : '#9E740C' }]}>
+                  PLAYERS SETUP
+                </Text>
+              </View>
+
+              <View style={styles.playersSetupCol}>
+                {/* Player 1 (White ♔) */}
+                <View
+                  style={[
+                    styles.playerSetupCard,
+                    {
+                      backgroundColor: isDark ? '#141A16' : '#FFFFFF',
+                      borderColor: '#1F9D55',
+                    },
+                  ]}
+                >
+                  <LinearGradient colors={['#F0C64A', '#D4A017']} style={styles.playerSetupAvatar}>
+                    <Text style={styles.playerSetupAvatarText}>
+                      {getInitials(player1Name, 'P1')}
+                    </Text>
+                  </LinearGradient>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.playerSetupHeaderRow}>
+                      <Text style={[styles.playerSetupLabel, { color: isDark ? '#96A1AD' : '#5C7A6A' }]}>
+                        PLAYER 1 (WHITE ♔)
+                      </Text>
+                      <View style={styles.playerYouBadge}>
+                        <Text style={styles.playerYouBadgeText}>YOU</Text>
+                      </View>
+                    </View>
+                    <TextInput
+                      style={[
+                        styles.playerSetupInput,
+                        {
+                          color: isDark ? '#FFF' : '#1A2318',
+                          borderColor: isDark ? 'rgba(255,255,255,0.12)' : '#D0E5D8',
+                        },
+                      ]}
+                      value={player1Name}
+                      onChangeText={setPlayer1Name}
+                      placeholder="Player 1 Name"
+                      placeholderTextColor={isDark ? '#5C7A6A' : '#96A1AD'}
+                      maxLength={18}
+                    />
+                  </View>
+                </View>
+
+                {/* Player 2 (Black ♚) */}
+                <View
+                  style={[
+                    styles.playerSetupCard,
+                    {
+                      backgroundColor: isDark ? '#141A16' : '#FFFFFF',
+                      borderColor: '#2668D9',
+                    },
+                  ]}
+                >
+                  <LinearGradient colors={['#2668D9', '#153E8A']} style={styles.playerSetupAvatar}>
+                    <Text style={styles.playerSetupAvatarText}>
+                      {getInitials(player2Name || 'Player 2', 'P2')}
+                    </Text>
+                  </LinearGradient>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.playerSetupHeaderRow}>
+                      <Text style={[styles.playerSetupLabel, { color: isDark ? '#96A1AD' : '#5C7A6A' }]}>
+                        PLAYER 2 (BLACK ♚)
+                      </Text>
+                      <View style={[styles.playerYouBadge, { backgroundColor: 'rgba(38,104,217,0.18)' }]}>
+                        <Text style={[styles.playerYouBadgeText, { color: '#4A90E2' }]}>OPPONENT</Text>
+                      </View>
+                    </View>
+                    <TextInput
+                      style={[
+                        styles.playerSetupInput,
+                        {
+                          color: isDark ? '#FFF' : '#1A2318',
+                          borderColor: isDark ? 'rgba(38,104,217,0.4)' : '#A8C7F7',
+                        },
+                      ]}
+                      value={player2Name}
+                      onChangeText={setPlayer2Name}
+                      placeholder="Enter Player 2 name (e.g. Rahul)"
+                      placeholderTextColor={isDark ? '#5C7A6A' : '#96A1AD'}
+                      maxLength={18}
+                    />
+                  </View>
+                </View>
               </View>
             </>
           )}
@@ -584,6 +703,60 @@ const styles = StyleSheet.create({
     height: 10,
     borderRadius: 5,
     backgroundColor: '#F0C64A',
+  },
+  playersSetupCol: {
+    gap: 10,
+    marginBottom: 16,
+  },
+  playerSetupCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    gap: 12,
+  },
+  playerSetupAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playerSetupAvatarText: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: '#0D2018',
+  },
+  playerSetupHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  playerSetupLabel: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  playerYouBadge: {
+    backgroundColor: 'rgba(31,157,85,0.18)',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  playerYouBadgeText: {
+    fontSize: 9.5,
+    fontWeight: '800',
+    color: '#1F9D55',
+  },
+  playerSetupInput: {
+    fontSize: 14.5,
+    fontWeight: '700',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 1,
   },
   timePresetsGrid: {
     flexDirection: 'row',

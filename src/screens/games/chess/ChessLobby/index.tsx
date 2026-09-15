@@ -47,7 +47,18 @@ export const ChessLobbyScreen: React.FC = () => {
 
   const userProfile = useAppSelector((state) => state.user.profile);
   const currentUserId = useAppSelector((state) => state.auth.userId) || 'guest_me';
-  const username = userProfile?.username || 'You';
+  const username = userProfile?.name || userProfile?.username || 'You';
+  const userRating = userProfile?.gameStats?.find((g) => g.gameId === 'chess')?.rank || 1420;
+  const userLevel = userProfile?.level || 1;
+
+  const getInitials = (str: string, fallback: string) => {
+    if (!str || str === 'You' || str === 'Player 1') return fallback;
+    const parts = str.trim().split(/\s+/);
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return str.slice(0, 2).toUpperCase();
+  };
 
   const mode = route.params?.mode || 'random'; // 'private' or 'random'
   const isHostParam = route.params?.isHost ?? true;
@@ -200,6 +211,9 @@ export const ChessLobbyScreen: React.FC = () => {
           gameId: 'chess',
           timeSeconds: selectedTime,
           entryFee: 0,
+          userId: currentUserId,
+          username: username,
+          avatar: userProfile?.avatar || '',
         });
       } catch (err) {
         console.error('Failed to connect socket for matchmaking:', err);
@@ -490,40 +504,40 @@ export const ChessLobbyScreen: React.FC = () => {
   };
 
   const handleStartPrivateMatch = () => {
-    if (joinedFriend) {
-      // Synchronized match with friend
-      socketService.emit(SOCKET_EVENTS.LOBBY_START_GAME, {
-        timeSeconds: selectedTime,
-      });
-    } else {
-      // Confirmation dialog if friend hasn't joined yet
+    if (!joinedFriend) {
       Alert.alert(
-        'Friend Has Not Joined Yet',
-        `Your friend has not entered Room #${roomCode} yet.\n\nWould you like to share the code with your friend or start a solo test match?`,
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Share Code 📤', onPress: handleShareCode },
-          {
-            text: 'Start Solo Match',
-            onPress: () => {
-              navigation.replace(ROUTES.CHESS_GAME, {
-                matchId: `match_${roomCode}`,
-                mode: 'private',
-                timeSeconds: selectedTime,
-                myColor: 'white',
-                whitePlayer: username,
-                blackPlayer: 'Friend (Guest)',
-                opponent: {
-                  name: 'Friend (Guest)',
-                  rating: 1420,
-                  avatar: '',
-                },
-              });
-            },
-          },
-        ]
+        'Waiting for Friend',
+        `Your friend has not entered Room #${roomCode} yet. Share the code #${roomCode} or invite them from the friends list below.`
       );
+      return;
     }
+
+    // Synchronized match with friend
+    socketService.emit(SOCKET_EVENTS.LOBBY_START_GAME, {
+      timeSeconds: selectedTime,
+    });
+  };
+
+  const handleCancelPrivateMatch = () => {
+    Alert.alert(
+      privateTab === 'create' ? 'Cancel Room?' : 'Leave Room?',
+      privateTab === 'create'
+        ? `Are you sure you want to cancel and close Room #${roomCode}?`
+        : 'Are you sure you want to leave this room?',
+      [
+        { text: 'Keep Waiting', style: 'cancel' },
+        {
+          text: privateTab === 'create' ? 'Yes, Cancel Room' : 'Yes, Leave',
+          style: 'destructive',
+          onPress: () => {
+            socketService.emit(SOCKET_EVENTS.LOBBY_LEAVE, { roomCode });
+            setJoinedFriend(null);
+            setHasJoinedAsGuest(false);
+            navigation.goBack();
+          },
+        },
+      ]
+    );
   };
 
   const formatElapsed = (sec: number) => {
@@ -703,7 +717,7 @@ export const ChessLobbyScreen: React.FC = () => {
                 ]}
               >
                 <LinearGradient colors={['#F0C64A', '#D4A017']} style={styles.avatar}>
-                  <Text style={styles.avatarText}>ME</Text>
+                  <Text style={styles.avatarText}>{getInitials(username, 'ME')}</Text>
                 </LinearGradient>
                 <View style={{ flex: 1 }}>
                   <View style={styles.nameRow}>
@@ -715,7 +729,7 @@ export const ChessLobbyScreen: React.FC = () => {
                     </View>
                   </View>
                   <Text style={[styles.playerSub, { color: isDark ? '#96A1AD' : '#5C7A6A' }]}>
-                    Rating: 1,420 ELO · Level 12
+                    Rating: {userRating.toLocaleString()} ELO · Level {userLevel}
                   </Text>
                 </View>
                 <View style={[styles.readyPill, { backgroundColor: '#1F9D55' }]}>
@@ -798,8 +812,27 @@ export const ChessLobbyScreen: React.FC = () => {
           </ScrollView>
 
           {/* Footer Cancel Button */}
-          <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-            <TouchableOpacity activeOpacity={0.85} style={styles.cancelBtn} onPress={handleCancel}>
+          <View
+            style={[
+              styles.footer,
+              {
+                backgroundColor: isDark ? '#0A120E' : '#FFFFFF',
+                borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : '#E0ECE4',
+                paddingBottom: Math.max(insets.bottom + 6, 16),
+              },
+            ]}
+          >
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={[
+                styles.cancelBtn,
+                {
+                  backgroundColor: isDark ? 'rgba(230, 72, 58, 0.12)' : '#FDE8E7',
+                  borderColor: isDark ? 'rgba(230, 72, 58, 0.45)' : '#F5A39B',
+                },
+              ]}
+              onPress={handleCancel}
+            >
               <Text style={styles.cancelBtnText}>✕ Cancel Matchmaking</Text>
             </TouchableOpacity>
           </View>
@@ -807,7 +840,7 @@ export const ChessLobbyScreen: React.FC = () => {
       ) : privateTab === 'create' ? (
         /* Create Room / Play with Friends Screen */
         <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 110 }]}
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 175 }]}
           showsVerticalScrollIndicator={false}
         >
           {/* Room Code Card */}
@@ -869,7 +902,7 @@ export const ChessLobbyScreen: React.FC = () => {
               ]}
             >
               <LinearGradient colors={['#F0C64A', '#D4A017']} style={styles.avatar}>
-                <Text style={styles.avatarText}>ME</Text>
+                <Text style={styles.avatarText}>{getInitials(username, 'ME')}</Text>
               </LinearGradient>
               <View style={{ flex: 1 }}>
                 <View style={styles.nameRow}>
@@ -881,7 +914,7 @@ export const ChessLobbyScreen: React.FC = () => {
                   </View>
                 </View>
                 <Text style={[styles.playerSub, { color: isDark ? '#96A1AD' : '#5C7A6A' }]}>
-                  Rating: 1,420 ELO
+                  Rating: {userRating.toLocaleString()} ELO · Level {userLevel}
                 </Text>
               </View>
               <View style={[styles.readyPill, { backgroundColor: '#1F9D55' }]}>
@@ -1046,7 +1079,7 @@ export const ChessLobbyScreen: React.FC = () => {
       ) : (
         /* Join Room Tab Screen */
         <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 110 }]}
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 120 }]}
           showsVerticalScrollIndicator={false}
         >
           {/* Join Code Card */}
@@ -1112,14 +1145,67 @@ export const ChessLobbyScreen: React.FC = () => {
       )}
 
       {/* Private Room Footer Action */}
-      {mode === 'private' && privateTab === 'create' && (
-        <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 16) }]}>
-          <TouchableOpacity activeOpacity={0.85} style={styles.startBtn} onPress={handleStartPrivateMatch}>
-            <LinearGradient colors={['#F0C64A', '#D4A017', '#9C6C0C']} style={styles.startBtnGradient}>
-              <Text style={styles.startBtnText}>
-                {joinedFriend ? '⚔️ Start Match with Friend' : '⚔️ Start Match Now'}
-              </Text>
-            </LinearGradient>
+      {mode === 'private' && (
+        <View
+          style={[
+            styles.footer,
+            {
+              backgroundColor: isDark ? '#0A120E' : '#FFFFFF',
+              borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : '#E0ECE4',
+              paddingBottom: Math.max(insets.bottom + 6, 16),
+            },
+          ]}
+        >
+          {privateTab === 'create' && (
+            <TouchableOpacity
+              activeOpacity={0.85}
+              disabled={!joinedFriend}
+              style={[
+                styles.startBtn,
+                !joinedFriend && (isDark ? styles.disabledStartBtnDark : styles.disabledStartBtnLight),
+              ]}
+              onPress={handleStartPrivateMatch}
+            >
+              <LinearGradient
+                colors={
+                  joinedFriend
+                    ? ['#F0C64A', '#D4A017', '#9C6C0C']
+                    : isDark
+                    ? ['#1C2620', '#131A16']
+                    : ['#E2ECE6', '#D0E0D6']
+                }
+                style={styles.startBtnGradient}
+              >
+                <Text
+                  style={[
+                    styles.startBtnText,
+                    !joinedFriend && (isDark ? styles.disabledStartBtnTextDark : styles.disabledStartBtnTextLight),
+                  ]}
+                >
+                  {joinedFriend
+                    ? `⚔️ Start Match with ${joinedFriend.username}`
+                    : '⏳ Waiting for Friend to Join...'}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+
+          {/* Cancel Match / Leave Room Button */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={[
+              styles.cancelBtn,
+              {
+                marginTop: privateTab === 'create' ? 8 : 0,
+                backgroundColor: isDark ? 'rgba(230, 72, 58, 0.12)' : '#FDE8E7',
+                borderColor: isDark ? 'rgba(230, 72, 58, 0.45)' : '#F5A39B',
+              },
+            ]}
+            onPress={handleCancelPrivateMatch}
+          >
+            <Text style={styles.cancelBtnText}>
+              {privateTab === 'create' ? '✕ Cancel Room' : '✕ Leave Room'}
+            </Text>
           </TouchableOpacity>
         </View>
       )}
@@ -1648,41 +1734,65 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     paddingHorizontal: 16,
-    paddingTop: 12,
-    backgroundColor: 'transparent',
+    paddingTop: 10,
+    borderTopWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 8,
+    elevation: 16,
   },
   cancelBtn: {
-    backgroundColor: 'rgba(230, 72, 58, 0.15)',
     borderWidth: 1.5,
-    borderColor: '#E6483A',
-    paddingVertical: 14,
-    borderRadius: 16,
+    paddingVertical: 12,
+    borderRadius: 14,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   cancelBtnText: {
-    fontSize: 14,
+    fontSize: 13.5,
     fontWeight: '800',
     color: '#E6483A',
   },
   startBtn: {
-    borderRadius: 18,
+    borderRadius: 16,
     overflow: 'hidden',
     shadowColor: '#D4A017',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 10,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  disabledStartBtnDark: {
+    shadowOpacity: 0,
+    elevation: 0,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  disabledStartBtnLight: {
+    shadowOpacity: 0,
+    elevation: 0,
+    borderWidth: 1,
+    borderColor: '#D0E0D6',
   },
   startBtnGradient: {
-    paddingVertical: 16,
+    paddingVertical: 13,
     alignItems: 'center',
     justifyContent: 'center',
   },
   startBtnText: {
-    fontSize: 16,
+    fontSize: 14.5,
     fontWeight: '900',
     color: '#1A1405',
     letterSpacing: 0.5,
+  },
+  disabledStartBtnTextDark: {
+    color: '#6F8578',
+    fontWeight: '700',
+  },
+  disabledStartBtnTextLight: {
+    color: '#7D9587',
+    fontWeight: '700',
   },
 });
 
