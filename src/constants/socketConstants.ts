@@ -11,29 +11,39 @@ export const SOCKET_EVENTS = {
   LOBBY_JOIN: 'lobby:join',
   LOBBY_LEAVE: 'lobby:leave',
   LOBBY_UPDATE: 'lobby:update',
-  LOBBY_PLAYER_READY: 'lobby:playerReady',
-  LOBBY_START_GAME: 'lobby:startGame',
+  LOBBY_PLAYER_READY: 'lobby:player_ready',
+  LOBBY_START_GAME: 'lobby:start_game',
+
+  // Matchmaking (Quick Match)
+  MATCH_QUEUE_JOIN: 'match:queue_join',
+  MATCH_QUEUE_LEAVE: 'match:queue_leave',
+  MATCH_FOUND: 'match:found',
+  MATCH_DRAW_OFFER: 'match:draw_offer',
+  MATCH_DRAW_RESPONSE: 'match:draw_response',
+  MATCH_RESIGN: 'match:resign',
 
   // Game
   GAME_START: 'game:start',
   GAME_STATE: 'game:state',
   GAME_MOVE: 'game:move',
   GAME_TURN: 'game:turn',
+  GAME_OVER: 'game:over',
   GAME_END: 'game:end',
   GAME_PAUSE: 'game:pause',
   GAME_RESUME: 'game:resume',
   GAME_TIMEOUT: 'game:timeout',
+  GAME_EMOTE: 'game:emote',
 
   // Player
-  PLAYER_JOIN: 'player:join',
-  PLAYER_LEAVE: 'player:leave',
-  PLAYER_RECONNECT: 'player:reconnect',
-  PLAYER_DISCONNECT: 'player:disconnect',
+  PLAYER_JOIN: 'player:joined',
+  PLAYER_LEAVE: 'player:left',
+  PLAYER_RECONNECT: 'player:reconnected',
+  PLAYER_DISCONNECT: 'player:disconnected',
 
   // Chat
-  CHAT_JOIN_ROOM: 'chat:joinRoom',
-  CHAT_LEAVE_ROOM: 'chat:leaveRoom',
-  CHAT_MESSAGE: 'chat:message',
+  CHAT_JOIN_ROOM: 'chat:join_room',
+  CHAT_LEAVE_ROOM: 'chat:leave_room',
+  CHAT_MESSAGE: 'chat:send_message',
   CHAT_TYPING: 'chat:typing',
 
   // Friends
@@ -41,7 +51,7 @@ export const SOCKET_EVENTS = {
   FRIEND_OFFLINE: 'friend:offline',
   FRIEND_REQUEST: 'friend:request',
   FRIEND_ACCEPTED: 'friend:accepted',
-  FRIEND_GAME_INVITE: 'friend:gameInvite',
+  FRIEND_GAME_INVITE: 'friend:game_invite',
 
   // Notification
   NOTIFICATION_NEW: 'notification:new',
