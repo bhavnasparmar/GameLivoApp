@@ -11,7 +11,11 @@ export type RootStackParamList = {
 export type AuthStackParamList = {
   Login: undefined;
   Register: undefined;
-  VerifyOTP: { mobile: string; type: 'register' | 'login' | 'forgot_password' };
+  VerifyOTP: {
+    mobile?: string;
+    email?: string;
+    type: 'register' | 'login' | 'forgot_password';
+  };
   ForgotPassword: undefined;
   ResetPassword: { mobile: string; otp: string };
 };
@@ -34,10 +38,10 @@ export type GameStackParamList = {
 
   // Chess
   ChessHome: undefined;
-  ChessMode: undefined;
-  ChessLobby: { lobbyId?: string; isHost: boolean };
-  ChessGame: { matchId: string };
-  ChessResult: { matchId: string };
+  ChessMode: { initialMode?: 'computer' | 'local' | 'rules' } | undefined;
+  ChessLobby: { lobbyId?: string; isHost?: boolean; mode?: 'private' | 'random' } | undefined;
+  ChessGame: { matchId?: string; mode?: string; difficulty?: string; timeSeconds?: number; autoFlip?: boolean; whitePlayer?: string; blackPlayer?: string };
+  ChessResult: { matchId?: string; gameState?: any; mode?: string; difficulty?: string };
 
   // Uno
   UnoHome: undefined;

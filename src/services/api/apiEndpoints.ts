@@ -5,6 +5,7 @@ export const API_ENDPOINTS = {
   AUTH: {
     LOGIN: '/auth/login',
     REGISTER: '/auth/register',
+    VERIFY_REGISTRATION_OTP: '/auth/register/verify-otp',
     LOGOUT: '/auth/logout',
     REFRESH_TOKEN: '/auth/refresh',
     SEND_OTP: '/auth/otp/send',
@@ -47,6 +48,7 @@ export const API_ENDPOINTS = {
   // Friends
   FRIENDS: {
     LIST: '/friends',
+    SUGGESTIONS: '/friends/suggestions',
     REQUESTS: '/friends/requests',
     SEND_REQUEST: '/friends/request',
     ACCEPT: (requestId: string) => `/friends/request/${requestId}/accept`,
