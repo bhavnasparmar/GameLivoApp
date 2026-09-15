@@ -13,7 +13,9 @@ import {
   Share,
   Clipboard,
   ActivityIndicator,
+  Image,
 } from 'react-native';
+import FastImage from 'react-native-fast-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -24,6 +26,7 @@ import { SOCKET_EVENTS } from '../../../../constants/socketConstants';
 import { friendsService } from '../../../../services/friends/friendsService';
 import { Friend } from '../../../../types/friends';
 import { useAppSelector } from '../../../../redux/hooks';
+import { ALL_CHESS_PIECE_ASSETS } from '../../../../gameEngine/chess/chessConstants';
 
 const SEARCH_STATUS_MESSAGES = [
   'Searching for Grandmaster Opponents...',
@@ -124,6 +127,22 @@ export const ChessLobbyScreen: React.FC = () => {
       setIsLoadingFriends(false);
     }
   }, [currentUserId, username]);
+
+  // Preload all chess piece graphics in background while in lobby/matchmaking
+  useEffect(() => {
+    try {
+      const preloadList = ALL_CHESS_PIECE_ASSETS.map((asset) => {
+        const source = Image.resolveAssetSource(asset);
+        return { uri: source?.uri || '' };
+      }).filter((item) => Boolean(item.uri));
+
+      if (preloadList.length > 0) {
+        FastImage.preload(preloadList);
+      }
+    } catch (e) {
+      // Safe fallback
+    }
+  }, []);
 
   useEffect(() => {
     if (mode === 'private') {
