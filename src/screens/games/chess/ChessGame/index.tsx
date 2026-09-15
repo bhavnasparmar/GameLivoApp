@@ -26,7 +26,6 @@ import { CHESS_DEFAULT_TIME_SECONDS } from '../../../../gameEngine/chess/chessCo
 import ChessBoardView from '../components/ChessBoardView';
 import ChessPlayerBar from '../components/ChessPlayerBar';
 import PawnPromotionModal from '../components/PawnPromotionModal';
-import ChessMoveHistoryBar from '../components/ChessMoveHistoryBar';
 import ChessActionModal, { ChessActionType } from '../components/ChessActionModal';
 import { socketService } from '../../../../services/socket/socketService';
 import { SOCKET_EVENTS } from '../../../../constants/socketConstants';
@@ -593,9 +592,10 @@ export const ChessGameScreen: React.FC = () => {
           capturedPieces={topCaptured}
           materialAdvantage={topAdvantage}
           isDark={isDark}
+          isMe={false}
           statusText={
             isAiThinking && gameState.currentTurn === topPlayerColor
-              ? 'Thinking… 🤖'
+              ? 'THINKING… 🤖'
               : undefined
           }
         />
@@ -626,10 +626,8 @@ export const ChessGameScreen: React.FC = () => {
           capturedPieces={bottomCaptured}
           materialAdvantage={bottomAdvantage}
           isDark={isDark}
+          isMe={mode !== 'local'}
         />
-
-        {/* Move History Algebraic Notation Ribbon */}
-        <ChessMoveHistoryBar moves={gameState.moveHistory} isDark={isDark} />
       </View>
 
       {/* Action Footer Controls */}

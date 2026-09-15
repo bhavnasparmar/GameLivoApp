@@ -1,4 +1,5 @@
 import {
+  CastlingRights,
   ChessBoard,
   ChessColor,
   ChessDifficulty,
@@ -77,13 +78,24 @@ export class ChessEngineImpl implements BaseGameEngine<ChessGameState, ChessMove
     };
   }
 
-  getBoardPositionKey(board: ChessBoard, turn: ChessColor): string {
+  getBoardPositionKey(
+    board: ChessBoard,
+    turn: ChessColor,
+    castling?: CastlingRights,
+    ep?: ChessPosition | null,
+  ): string {
     let key = `${turn}:`;
     for (let r = 0; r < 8; r++) {
       for (let c = 0; c < 8; c++) {
         const p = board[r][c];
         key += p ? `${p.color[0]}${p.type[0]}` : '.';
       }
+    }
+    if (castling) {
+      key += `:${castling.white.kingside ? 'K' : ''}${castling.white.queenside ? 'Q' : ''}${castling.black.kingside ? 'k' : ''}${castling.black.queenside ? 'q' : ''}`;
+    }
+    if (ep) {
+      key += `:${ep.row},${ep.col}`;
     }
     return key;
   }
@@ -153,7 +165,7 @@ export class ChessEngineImpl implements BaseGameEngine<ChessGameState, ChessMove
         from.col !== to.col &&
         !capturedPiece
       ) {
-        const capturedPawnRow = activeColor === 'white' ? to.row + 1 : to.row - 1;
+        const capturedPawnRow = from.row;
         capturedPiece = newBoard[capturedPawnRow][to.col];
         newBoard[capturedPawnRow][to.col] = null;
         moveType = 'en_passant';
@@ -249,7 +261,7 @@ export class ChessEngineImpl implements BaseGameEngine<ChessGameState, ChessMove
     }
 
     // 7. Threefold repetition
-    const posKey = this.getBoardPositionKey(newBoard, nextColor);
+    const posKey = this.getBoardPositionKey(newBoard, nextColor, newCastling, nextEnPassantTarget);
     const newPosHistory = [...state.positionHistory, posKey];
     const occurrences = newPosHistory.filter((k) => k === posKey).length;
     const isThreefold = occurrences >= 3;
@@ -296,6 +308,9 @@ export class ChessEngineImpl implements BaseGameEngine<ChessGameState, ChessMove
         { from, to, piece: movingPiece, capturedPiece, moveType, promotion: finalPiece.type !== movingPiece.type ? finalPiece.type : undefined },
         isNextInCheck,
         isNextCheckmated,
+        state.board,
+        state.castlingRights,
+        state.enPassantTarget,
       ),
     };
 
