@@ -60,7 +60,8 @@ export const UnoGameScreen: React.FC = () => {
   const playerCount: number = route.params?.playerCount || 8;
   const initialTimeSeconds = route.params?.timeSeconds || UNO_DEFAULT_TIME_SECONDS;
 
-  const player1Name = route.params?.player1Name || userProfile?.name || userProfile?.username || 'You';
+  const userRealName = route.params?.player1Name || userProfile?.name || userProfile?.username || 'You';
+  const userRealAvatar = route.params?.userAvatar || userProfile?.avatar || '👩🏻';
   const customPlayers = route.params?.players;
   const stake: number = route.params?.stake || 0;
   const prizePool: number = route.params?.prizePool || 0;
@@ -75,38 +76,32 @@ export const UnoGameScreen: React.FC = () => {
     setTimeout(() => setToastMsg(''), 2000);
   };
 
-  // Build Players Configuration
+  // Build Players Configuration with User Real Name & Profile Avatar
   const initialPlayers = React.useMemo(() => {
     if (customPlayers && customPlayers.length > 0) {
-      return customPlayers;
+      return customPlayers.map((p: any) => {
+        if (p.id === currentUserId || (!p.isBot && (p.isHost || p.name === 'You' || p.name === userRealName))) {
+          return {
+            ...p,
+            name: userRealName,
+            avatar: userRealAvatar,
+          };
+        }
+        return p;
+      });
     }
-    if (playerCount === 2) {
-      const bot = UNO_ROBOT_PROFILES[0];
-      return [
-        { id: currentUserId, name: player1Name, isBot: false, avatar: '👩🏻', isHost: true },
-        { id: bot.id, name: bot.name, isBot: true, avatar: bot.avatar },
-      ];
-    } else if (playerCount === 4) {
-      return [
-        { id: currentUserId, name: player1Name, isBot: false, avatar: '👩🏻', isHost: true },
-        { id: UNO_ROBOT_PROFILES[0].id, name: UNO_ROBOT_PROFILES[0].name, isBot: true, avatar: UNO_ROBOT_PROFILES[0].avatar },
-        { id: UNO_ROBOT_PROFILES[1].id, name: UNO_ROBOT_PROFILES[1].name, isBot: true, avatar: UNO_ROBOT_PROFILES[1].avatar },
-        { id: UNO_ROBOT_PROFILES[2].id, name: UNO_ROBOT_PROFILES[2].name, isBot: true, avatar: UNO_ROBOT_PROFILES[2].avatar },
-      ];
-    } else {
-      // 8-Player Full Table
-      const bots = UNO_ROBOT_PROFILES.slice(0, 7);
-      return [
-        { id: currentUserId, name: player1Name, isBot: false, avatar: '👩🏻', isHost: true },
-        ...bots.map((b) => ({
-          id: b.id,
-          name: b.name,
-          isBot: true,
-          avatar: b.avatar,
-        })),
-      ];
-    }
-  }, [playerCount, currentUserId, player1Name, customPlayers]);
+    const totalCount = Math.max(2, Math.min(8, playerCount || 4));
+    const bots = UNO_ROBOT_PROFILES.slice(0, totalCount - 1);
+    return [
+      { id: currentUserId, name: userRealName, isBot: false, avatar: userRealAvatar, isHost: true },
+      ...bots.map((b) => ({
+        id: b.id,
+        name: b.name,
+        isBot: true,
+        avatar: b.avatar,
+      })),
+    ];
+  }, [playerCount, currentUserId, userRealName, userRealAvatar, customPlayers]);
 
   // Game Engine State
   const [gameState, setGameState] = useState<UnoGameState>(() =>
@@ -176,7 +171,7 @@ export const UnoGameScreen: React.FC = () => {
     socketService.emit(SOCKET_EVENTS.PLAYER_JOIN, {
       matchId,
       userId: currentUserId,
-      username: player1Name,
+      username: userRealName,
     });
 
     const handleRemoteMove = (data: { move?: UnoMove; playerId?: string; gameState?: UnoGameState }) => {
@@ -224,7 +219,7 @@ export const UnoGameScreen: React.FC = () => {
       socketService.off(SOCKET_EVENTS.CHAT_MESSAGE);
       socketService.off(SOCKET_EVENTS.GAME_OVER);
     };
-  }, [mode, matchId, currentUserId, player1Name, isSoundOn, triggerOpponentActionMsg]);
+  }, [mode, matchId, currentUserId, userRealName, isSoundOn, triggerOpponentActionMsg]);
 
   // Execute Move Helper
   const executeMove = useCallback(
@@ -559,25 +554,65 @@ export const UnoGameScreen: React.FC = () => {
     const opponents = gameState.players.filter((p) => p.id !== myPlayer.id);
 
     if (opponents.length === 1) {
+      // 2 Players (1 Opponent)
       if (seat === 'top') return opponents[0];
+      return undefined;
+    }
+
+    if (opponents.length === 2) {
+      // 3 Players (2 Opponents)
+      if (seat === 'topLeft') return opponents[0];
+      if (seat === 'topRight') return opponents[1];
       return undefined;
     }
 
     if (opponents.length === 3) {
-      if (seat === 'top') return opponents[0];
-      if (seat === 'right') return opponents[1];
-      if (seat === 'left') return opponents[2];
+      // 4 Players (3 Opponents)
+      if (seat === 'left') return opponents[0];
+      if (seat === 'top') return opponents[1];
+      if (seat === 'right') return opponents[2];
       return undefined;
     }
 
+    if (opponents.length === 4) {
+      // 5 Players (4 Opponents)
+      if (seat === 'left') return opponents[0];
+      if (seat === 'topLeft') return opponents[1];
+      if (seat === 'topRight') return opponents[2];
+      if (seat === 'right') return opponents[3];
+      return undefined;
+    }
+
+    if (opponents.length === 5) {
+      // 6 Players (5 Opponents)
+      if (seat === 'bottomLeft') return opponents[0];
+      if (seat === 'topLeft') return opponents[1];
+      if (seat === 'top') return opponents[2];
+      if (seat === 'topRight') return opponents[3];
+      if (seat === 'bottomRight') return opponents[4];
+      return undefined;
+    }
+
+    if (opponents.length === 6) {
+      // 7 Players (6 Opponents)
+      if (seat === 'bottomLeft') return opponents[0];
+      if (seat === 'left') return opponents[1];
+      if (seat === 'topLeft') return opponents[2];
+      if (seat === 'topRight') return opponents[3];
+      if (seat === 'right') return opponents[4];
+      if (seat === 'bottomRight') return opponents[5];
+      return undefined;
+    }
+
+    // 8 Players (7 Opponents)
     const seatMap: Record<string, number> = {
-      top: 0,
-      topRight: 1,
-      right: 2,
-      bottomRight: 3,
-      bottomLeft: 4,
-      left: 5,
-      topLeft: 6,
+      bottomLeft: 0,
+      left: 1,
+      topLeft: 2,
+      top: 3,
+      topRight: 4,
+      right: 5,
+      bottomRight: 6,
     };
 
     const index = seatMap[seat];

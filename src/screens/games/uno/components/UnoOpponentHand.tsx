@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   TouchableOpacity,
   Animated,
@@ -158,7 +159,11 @@ export const UnoOpponentHand: React.FC<UnoOpponentHandProps> = ({
             }
             style={styles.avatarInnerCircle}
           >
-            <Text style={styles.avatarEmojiText}>{player.avatar || '👤'}</Text>
+            {player.avatar && (player.avatar.startsWith('http') || player.avatar.startsWith('file:') || player.avatar.startsWith('data:')) ? (
+              <Image source={{ uri: player.avatar }} style={styles.avatarImage} />
+            ) : (
+              <Text style={styles.avatarEmojiText}>{player.avatar || '👤'}</Text>
+            )}
           </LinearGradient>
         </Animated.View>
 
@@ -187,7 +192,7 @@ export const UnoOpponentHand: React.FC<UnoOpponentHandProps> = ({
           ]}
           numberOfLines={1}
         >
-          {isMe ? 'You' : player.name}
+          {player.name || (isMe ? 'You' : 'Player')}
         </Text>
       </View>
 
@@ -195,7 +200,7 @@ export const UnoOpponentHand: React.FC<UnoOpponentHandProps> = ({
       {isCurrentTurn && (
         <View style={styles.activeTurnTimerBadge}>
           <Text style={styles.activeTurnTimerText}>
-            {isMe ? `⏳ ${timeLeft}s` : `🤖 ${timeLeft}s`}
+            {isMe ? `⏳ ${timeLeft}s` : player.isBot ? `🤖 ${timeLeft}s` : `⏳ ${timeLeft}s`}
           </Text>
         </View>
       )}
@@ -304,6 +309,11 @@ const styles = StyleSheet.create({
   },
   avatarEmojiText: {
     fontSize: 18,
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 18,
   },
   cardCountBadge: {
     position: 'absolute',

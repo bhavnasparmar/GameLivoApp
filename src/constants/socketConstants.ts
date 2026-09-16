@@ -14,6 +14,7 @@ export const SOCKET_EVENTS = {
   LOBBY_UPDATE: 'lobby:update',
   LOBBY_PLAYER_READY: 'lobby:player_ready',
   LOBBY_START_GAME: 'lobby:start_game',
+  LOBBY_KICK_PLAYER: 'lobby:kick_player',
 
   // Matchmaking (Quick Match)
   MATCH_QUEUE_JOIN: 'match:queue_join',
