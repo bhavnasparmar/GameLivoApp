@@ -89,7 +89,6 @@ export const ForgotPasswordScreen: React.FC = () => {
     const isMobile = /^\+?[0-9]{7,15}$/.test(trimmed);
 
     const result = await forgotPassword(trimmed);
-
     if (result.success) {
       // Navigate to OTP screen for password reset verification
       navigation.navigate(ROUTES.VERIFY_OTP as 'VerifyOTP', {
