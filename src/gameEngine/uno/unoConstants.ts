@@ -4,149 +4,113 @@ import { UnoActiveColor, UnoBotConfig, UnoCard, UnoColor, UnoTimePreset } from '
 
 export interface UnoColorTheme {
   primary: string;
-  dark: string;
+  secondary: string;
   gradient: [string, string];
-  glow: string;
   border: string;
+  glow: string;
   text: string;
 }
 
 export const UNO_COLOR_THEMES: Record<UnoActiveColor, UnoColorTheme> = {
   red: {
-    primary: '#E63946',
-    dark: '#9E1C25',
-    gradient: ['#FF4D5A', '#C9182B'],
-    glow: 'rgba(230, 57, 70, 0.65)',
-    border: '#FF858F',
+    primary: '#E62429',
+    secondary: '#B31419',
+    gradient: ['#F8363F', '#D11E24'],
+    border: '#FF6B6B',
+    glow: 'rgba(230, 36, 41, 0.6)',
     text: '#FFFFFF',
   },
   blue: {
-    primary: '#1D70B8',
-    dark: '#0C4173',
-    gradient: ['#2E86DE', '#0A58CA'],
-    glow: 'rgba(29, 112, 184, 0.65)',
-    border: '#70A1FF',
+    primary: '#0072CE',
+    secondary: '#004C8C',
+    gradient: ['#1E90FF', '#0066CC'],
+    border: '#54A0FF',
+    glow: 'rgba(0, 114, 206, 0.6)',
     text: '#FFFFFF',
   },
   green: {
-    primary: '#2A9D8F',
-    dark: '#135950',
-    gradient: ['#2ECC71', '#1B8A4C'],
-    glow: 'rgba(42, 157, 143, 0.65)',
-    border: '#7BED9F',
+    primary: '#00A651',
+    secondary: '#006B34',
+    gradient: ['#2ECC71', '#009E49'],
+    border: '#1DD1A1',
+    glow: 'rgba(0, 166, 81, 0.6)',
     text: '#FFFFFF',
   },
   yellow: {
-    primary: '#F4A261',
-    dark: '#B0681B',
-    gradient: ['#FFC048', '#E67E22'],
-    glow: 'rgba(244, 162, 97, 0.65)',
+    primary: '#F5B800',
+    secondary: '#C69200',
+    gradient: ['#FEE140', '#F5B800'],
     border: '#FFEAA7',
-    text: '#1C1204',
+    glow: 'rgba(245, 184, 0, 0.6)',
+    text: '#1F1F1F',
   },
 };
 
-export const UNO_WILD_THEME = {
-  primary: '#1E272E',
-  dark: '#0F1417',
-  gradient: ['#2C3A47', '#131920'],
-  glow: 'rgba(255, 215, 0, 0.75)',
-  border: '#F9CA24',
+export const UNO_WILD_THEME: UnoColorTheme = {
+  primary: '#1A1A24',
+  secondary: '#0D0D14',
+  gradient: ['#2A2A38', '#14141E'],
+  border: '#F1C40F',
+  glow: 'rgba(241, 196, 15, 0.6)',
   text: '#FFFFFF',
-  quadrants: ['#FF4D5A', '#2E86DE', '#2ECC71', '#FFC048'],
 };
 
-// ─── 108 Card Standard Deck Builder ──────────────────────────────────────────
+// ─── Standard 108 Card Deck Builder ──────────────────────────────────────────
 
 export const buildStandardUnoDeck = (): UnoCard[] => {
   const cards: UnoCard[] = [];
   const standardColors: UnoActiveColor[] = ['red', 'green', 'blue', 'yellow'];
 
-  let idCounter = 1;
-
   standardColors.forEach((color) => {
-    // 1x '0' card
+    // One '0' card per color
     cards.push({
-      id: `card_${color}_0_${idCounter++}`,
+      id: `${color}_0_${Date.now()}_${Math.random()}`,
       color,
       value: '0',
       scoreValue: 0,
     });
 
-    // 2x '1' - '9' cards
-    for (let num = 1; num <= 9; num++) {
-      const valStr = num.toString() as any;
-      cards.push({
-        id: `card_${color}_${num}_a_${idCounter++}`,
-        color,
-        value: valStr,
-        scoreValue: num,
-      });
-      cards.push({
-        id: `card_${color}_${num}_b_${idCounter++}`,
-        color,
-        value: valStr,
-        scoreValue: num,
-      });
+    // Two of each 1-9 per color
+    for (let v = 1; v <= 9; v++) {
+      const valStr = v.toString() as UnoCard['value'];
+      for (let i = 0; i < 2; i++) {
+        cards.push({
+          id: `${color}_${valStr}_${i}_${Math.random()}`,
+          color,
+          value: valStr,
+          scoreValue: v,
+        });
+      }
     }
 
-    // 2x 'skip' cards
-    cards.push({
-      id: `card_${color}_skip_a_${idCounter++}`,
-      color,
-      value: 'skip',
-      scoreValue: 20,
-    });
-    cards.push({
-      id: `card_${color}_skip_b_${idCounter++}`,
-      color,
-      value: 'skip',
-      scoreValue: 20,
-    });
-
-    // 2x 'reverse' cards
-    cards.push({
-      id: `card_${color}_reverse_a_${idCounter++}`,
-      color,
-      value: 'reverse',
-      scoreValue: 20,
-    });
-    cards.push({
-      id: `card_${color}_reverse_b_${idCounter++}`,
-      color,
-      value: 'reverse',
-      scoreValue: 20,
-    });
-
-    // 2x 'draw2' cards (+2)
-    cards.push({
-      id: `card_${color}_draw2_a_${idCounter++}`,
-      color,
-      value: 'draw2',
-      scoreValue: 20,
-    });
-    cards.push({
-      id: `card_${color}_draw2_b_${idCounter++}`,
-      color,
-      value: 'draw2',
-      scoreValue: 20,
+    // Two of each action card per color (Skip, Reverse, Draw Two)
+    const actionValues: Array<'skip' | 'reverse' | 'draw2'> = ['skip', 'reverse', 'draw2'];
+    actionValues.forEach((act) => {
+      for (let i = 0; i < 2; i++) {
+        cards.push({
+          id: `${color}_${act}_${i}_${Math.random()}`,
+          color,
+          value: act,
+          scoreValue: 20,
+        });
+      }
     });
   });
 
-  // 4x Wild cards
-  for (let i = 1; i <= 4; i++) {
+  // Four Wild cards
+  for (let i = 0; i < 4; i++) {
     cards.push({
-      id: `card_wild_${i}_${idCounter++}`,
+      id: `wild_${i}_${Math.random()}`,
       color: 'wild',
       value: 'wild',
       scoreValue: 50,
     });
   }
 
-  // 4x Wild Draw 4 cards (+4)
-  for (let i = 1; i <= 4; i++) {
+  // Four Wild Draw 4 cards
+  for (let i = 0; i < 4; i++) {
     cards.push({
-      id: `card_wild_draw4_${i}_${idCounter++}`,
+      id: `wild_draw4_${i}_${Math.random()}`,
       color: 'wild',
       value: 'wild_draw4',
       scoreValue: 50,
@@ -166,43 +130,90 @@ export const UNO_TIME_PRESETS: UnoTimePreset[] = [
 
 export const UNO_DEFAULT_TIME_SECONDS = 15;
 
-// ─── Robot AI Profiles ────────────────────────────────────────────────────────
+// ─── Seat Ring Colors ─────────────────────────────────────────────────────────
 
-export const UNO_ROBOT_PROFILES: UnoBotConfig[] = [
+export const SEAT_RING_COLORS = [
+  '#2ECC71', // Green (Rohan / You)
+  '#E056FD', // Purple/Pink (Priya)
+  '#00D2D3', // Cyan (Arjun)
+  '#FF6B6B', // Coral/Red (Vikram)
+  '#A55EEA', // Purple (Simran)
+  '#F1C40F', // Gold (Karan)
+  '#54A0FF', // Sky Blue (Ananya)
+  '#FF9F43', // Orange
+];
+
+// ─── Realistic Table Player Profiles ──────────────────────────────────────────
+
+export interface UnoSeatProfile extends UnoBotConfig {
+  ringColor: string;
+  avatarImage?: string;
+  seatPosition?: 'top' | 'topRight' | 'right' | 'bottomRight' | 'bottomLeft' | 'left' | 'topLeft' | 'bottom';
+}
+
+export const UNO_ROBOT_PROFILES: UnoSeatProfile[] = [
   {
-    id: 'bot_easy',
-    name: 'RoboDex',
-    avatar: '🤖',
-    personality: 'Casual & friendly',
+    id: 'bot_rohan',
+    name: 'Rohan',
+    avatar: '👨🏻',
+    personality: 'Aggressive tactician',
+    difficulty: 'medium',
+    ringColor: '#2ECC71',
+    seatPosition: 'top',
+  },
+  {
+    id: 'bot_priya',
+    name: 'Priya',
+    avatar: '👩🏽',
+    personality: 'Smart & quick responder',
+    difficulty: 'medium',
+    ringColor: '#E056FD',
+    seatPosition: 'topRight',
+  },
+  {
+    id: 'bot_arjun',
+    name: 'Arjun',
+    avatar: '👨🏽',
+    personality: 'Color switch strategist',
+    difficulty: 'hard',
+    ringColor: '#00D2D3',
+    seatPosition: 'right',
+  },
+  {
+    id: 'bot_vikram',
+    name: 'Vikram',
+    avatar: '👨🏻‍🦱',
+    personality: 'Wild card saver',
+    difficulty: 'hard',
+    ringColor: '#FF6B6B',
+    seatPosition: 'bottomRight',
+  },
+  {
+    id: 'bot_simran',
+    name: 'Simran',
+    avatar: '👩🏻',
+    personality: 'Patient and calculated',
+    difficulty: 'medium',
+    ringColor: '#A55EEA',
+    seatPosition: 'bottomLeft',
+  },
+  {
+    id: 'bot_karan',
+    name: 'Karan',
+    avatar: '👨🏻‍💼',
+    personality: 'Fast paced Uno caller',
     difficulty: 'easy',
+    ringColor: '#F1C40F',
+    seatPosition: 'left',
   },
   {
-    id: 'bot_medium_1',
-    name: 'CyberLuna',
-    avatar: '⚡',
-    personality: 'Tactical color strategist',
-    difficulty: 'medium',
-  },
-  {
-    id: 'bot_medium_2',
-    name: 'AlphaByte',
-    avatar: '🧠',
-    personality: 'Calculated & steady',
-    difficulty: 'medium',
-  },
-  {
-    id: 'bot_hard_1',
-    name: 'NexusPrime',
-    avatar: '👑',
-    personality: 'Master of +4 & Wild finishers',
-    difficulty: 'hard',
-  },
-  {
-    id: 'bot_hard_2',
-    name: 'VortexAI',
-    avatar: '🔥',
-    personality: 'Relentless Uno champion',
-    difficulty: 'hard',
+    id: 'bot_ananya',
+    name: 'Ananya',
+    avatar: '👩🏻‍🦰',
+    personality: 'Draw-card combo master',
+    difficulty: 'easy',
+    ringColor: '#54A0FF',
+    seatPosition: 'topLeft',
   },
 ];
 

@@ -60,6 +60,11 @@ const AI_LEVELS: AiLevelOption[] = [
 
 const UNO_RULES_CONTENT = [
   {
+    glyph: '⚡',
+    title: 'Speed 3-Card Dealing',
+    text: 'Each player is dealt 3 cards at the start of every match for fast, high-stakes, action-packed rounds!',
+  },
+  {
     glyph: '🎯',
     title: 'Objective of Uno',
     text: 'Be the first player to discard all cards from your hand in each round and score points from opponents’ remaining cards!',
@@ -124,11 +129,8 @@ export const UnoModeScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<ActiveTab>(
     initialMode === 'rules' ? 'rules' : 'setup',
   );
-  const [gameMode, setGameMode] = useState<'computer' | 'local'>(
-    initialMode === 'local' ? 'local' : 'computer',
-  );
 
-  const [playerCount, setPlayerCount] = useState<2 | 4>(2);
+  const [playerCount, setPlayerCount] = useState<number>(8);
   const [player1Name, setPlayer1Name] = useState(loggedInName);
   const [player2Name, setPlayer2Name] = useState('Player 2');
   const [selectedDifficulty, setSelectedDifficulty] = useState<UnoDifficulty>('medium');
@@ -143,7 +145,7 @@ export const UnoModeScreen: React.FC = () => {
   const handleStartGame = () => {
     navigation.navigate(ROUTES.UNO_GAME, {
       matchId: `uno_${Date.now()}`,
-      mode: gameMode,
+      mode: 'computer',
       difficulty: selectedDifficulty,
       playerCount,
       timeSeconds: selectedTimePreset.seconds,
@@ -169,9 +171,7 @@ export const UnoModeScreen: React.FC = () => {
           >
             <Text style={styles.backIcon}>←</Text>
           </TouchableOpacity>
-          <Text style={styles.appBarTitle}>
-            {gameMode === 'computer' ? 'Play vs Robot Setup' : 'Pass & Play Setup'}
-          </Text>
+          <Text style={styles.appBarTitle}>Play vs Robot Setup</Text>
           <View style={{ width: 38 }} />
         </View>
 
@@ -204,43 +204,7 @@ export const UnoModeScreen: React.FC = () => {
           contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 100 }]}
           showsVerticalScrollIndicator={false}
         >
-          {/* Opponent Mode Toggle */}
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>GAME MODE</Text>
-          </View>
-          <View style={styles.modeToggleRow}>
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={[
-                styles.modeToggleBtn,
-                gameMode === 'computer' && styles.activeModeToggle,
-                { backgroundColor: isDark ? '#141E18' : '#FFFFFF' },
-              ]}
-              onPress={() => setGameMode('computer')}
-            >
-              <Text style={styles.modeToggleIcon}>🤖</Text>
-              <Text style={[styles.modeToggleText, { color: isDark ? '#FFF' : '#1A2318' }]}>
-                Play vs Robot
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              activeOpacity={0.8}
-              style={[
-                styles.modeToggleBtn,
-                gameMode === 'local' && styles.activeModeToggle,
-                { backgroundColor: isDark ? '#141E18' : '#FFFFFF' },
-              ]}
-              onPress={() => setGameMode('local')}
-            >
-              <Text style={styles.modeToggleIcon}>👥</Text>
-              <Text style={[styles.modeToggleText, { color: isDark ? '#FFF' : '#1A2318' }]}>
-                Pass & Play (2P)
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Table Size (2 Players vs 4 Players) */}
+          {/* Table Size (2, 4, or 8 Players) */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>TABLE PLAYERS COUNT</Text>
           </View>
@@ -256,7 +220,7 @@ export const UnoModeScreen: React.FC = () => {
             >
               <Text style={styles.modeToggleIcon}>⚔️</Text>
               <Text style={[styles.modeToggleText, { color: isDark ? '#FFF' : '#1A2318' }]}>
-                1 vs 1 Duel (2P)
+                1v1 Duel
               </Text>
             </TouchableOpacity>
 
@@ -271,70 +235,81 @@ export const UnoModeScreen: React.FC = () => {
             >
               <Text style={styles.modeToggleIcon}>🎪</Text>
               <Text style={[styles.modeToggleText, { color: isDark ? '#FFF' : '#1A2318' }]}>
-                4-Player Table
+                4 Players
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={[
+                styles.modeToggleBtn,
+                playerCount === 8 && styles.activeModeToggle,
+                { backgroundColor: isDark ? '#141E18' : '#FFFFFF' },
+              ]}
+              onPress={() => setPlayerCount(8)}
+            >
+              <Text style={styles.modeToggleIcon}>👑</Text>
+              <Text style={[styles.modeToggleText, { color: isDark ? '#FFF' : '#1A2318' }]}>
+                8P Full Table
               </Text>
             </TouchableOpacity>
           </View>
 
           {/* AI Difficulty Section */}
-          {gameMode === 'computer' && (
-            <>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>ROBOT AI DIFFICULTY</Text>
-              </View>
-              <View style={styles.aiCardsCol}>
-                {AI_LEVELS.map((lvl) => {
-                  const isSelected = selectedDifficulty === lvl.id;
-                  return (
-                    <TouchableOpacity
-                      key={lvl.id}
-                      activeOpacity={0.82}
-                      style={[
-                        styles.aiCard,
-                        {
-                          backgroundColor: isDark ? '#141E18' : '#FFFFFF',
-                          borderColor: isSelected
-                            ? '#E74C3C'
-                            : isDark
-                            ? 'rgba(255,255,255,0.08)'
-                            : '#E0ECE4',
-                        },
-                        isSelected && styles.activeAiCardGlow,
-                      ]}
-                      onPress={() => setSelectedDifficulty(lvl.id)}
-                    >
-                      <View style={styles.aiLeft}>
-                        <LinearGradient colors={lvl.gradient} style={styles.aiIconWrap}>
-                          <Text style={styles.aiEmoji}>{lvl.emoji}</Text>
-                        </LinearGradient>
-                        <View style={{ flex: 1 }}>
-                          <View style={styles.aiHeaderRow}>
-                            <Text style={[styles.aiTitle, { color: isDark ? '#FFF' : '#1A2318' }]}>
-                              {lvl.title}
-                            </Text>
-                            <View style={styles.aiBadgeWrap}>
-                              <Text style={styles.aiBadgeText}>{lvl.badge}</Text>
-                            </View>
-                          </View>
-                          <Text style={[styles.aiSubtitle, { color: isDark ? '#96A1AD' : '#5C7A6A' }]}>
-                            {lvl.subtitle}
-                          </Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>ROBOT AI DIFFICULTY</Text>
+          </View>
+          <View style={styles.aiCardsCol}>
+            {AI_LEVELS.map((lvl) => {
+              const isSelected = selectedDifficulty === lvl.id;
+              return (
+                <TouchableOpacity
+                  key={lvl.id}
+                  activeOpacity={0.82}
+                  style={[
+                    styles.aiCard,
+                    {
+                      backgroundColor: isDark ? '#141E18' : '#FFFFFF',
+                      borderColor: isSelected
+                        ? '#E74C3C'
+                        : isDark
+                        ? 'rgba(255,255,255,0.08)'
+                        : '#E0ECE4',
+                    },
+                    isSelected && styles.activeAiCardGlow,
+                  ]}
+                  onPress={() => setSelectedDifficulty(lvl.id)}
+                >
+                  <View style={styles.aiLeft}>
+                    <LinearGradient colors={lvl.gradient} style={styles.aiIconWrap}>
+                      <Text style={styles.aiEmoji}>{lvl.emoji}</Text>
+                    </LinearGradient>
+                    <View style={{ flex: 1 }}>
+                      <View style={styles.aiHeaderRow}>
+                        <Text style={[styles.aiTitle, { color: isDark ? '#FFF' : '#1A2318' }]}>
+                          {lvl.title}
+                        </Text>
+                        <View style={styles.aiBadgeWrap}>
+                          <Text style={styles.aiBadgeText}>{lvl.badge}</Text>
                         </View>
                       </View>
-                      <View
-                        style={[
-                          styles.radioCircle,
-                          isSelected && styles.radioCircleActive,
-                        ]}
-                      >
-                        {isSelected && <View style={styles.radioInner} />}
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </>
-          )}
+                      <Text style={[styles.aiSubtitle, { color: isDark ? '#96A1AD' : '#5C7A6A' }]}>
+                        {lvl.subtitle}
+                      </Text>
+                    </View>
+                  </View>
+                  <View
+                    style={[
+                      styles.radioCircle,
+                      isSelected && styles.radioCircleActive,
+                    ]}
+                  >
+                    {isSelected && <View style={styles.radioInner} />}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
           {/* Turn Time Preset Section */}
           <View style={styles.sectionHeader}>
@@ -426,9 +401,7 @@ export const UnoModeScreen: React.FC = () => {
             style={styles.startBtnGradient}
           >
             <Text style={styles.startBtnText}>
-              {gameMode === 'computer'
-                ? `⚡ START MATCH VS ROBOT (${playerCount}P)`
-                : `👥 START PASS & PLAY (${playerCount}P)`}
+              ⚡ START MATCH VS ROBOT ({playerCount}P)
             </Text>
           </LinearGradient>
         </TouchableOpacity>

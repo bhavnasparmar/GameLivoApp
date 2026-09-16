@@ -1,7 +1,6 @@
 import React from 'react';
 import {
   View,
-  Text,
   StyleSheet,
   ScrollView,
   Dimensions,
@@ -10,7 +9,7 @@ import { UnoActiveColor, UnoCard } from '../../../../gameEngine/uno/unoTypes';
 import { UnoRules } from '../../../../gameEngine/uno/unoRules';
 import UnoCardView from './UnoCardView';
 
-const { width } = Dimensions.get('window');
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface UnoHandViewProps {
   hand: UnoCard[];
@@ -33,51 +32,82 @@ export const UnoHandView: React.FC<UnoHandViewProps> = ({
   onCardPress,
   disabled = false,
 }) => {
+  const total = hand.length;
+  const isFewCards = total <= 4;
+
+  // Responsive overlap calculation based on screen width and card count
+  const calculateCardLayout = (index: number) => {
+    const mid = (total - 1) / 2;
+    const offsetFromMid = index - mid;
+
+    let rotationDeg = 0;
+    let yOffset = 0;
+    let marginLeft = 0;
+
+    if (total === 1) {
+      rotationDeg = 0;
+      yOffset = 0;
+      marginLeft = 0;
+    } else if (total === 2) {
+      rotationDeg = index === 0 ? -5 : 5;
+      yOffset = 2;
+      marginLeft = index === 0 ? 0 : -12;
+    } else if (total === 3) {
+      rotationDeg = index === 0 ? -8 : index === 1 ? 0 : 8;
+      yOffset = index === 1 ? -4 : 3;
+      marginLeft = index === 0 ? 0 : -16;
+    } else if (total === 4) {
+      rotationDeg = offsetFromMid * 5;
+      yOffset = Math.abs(offsetFromMid) * 2.5;
+      marginLeft = index === 0 ? 0 : -20;
+    } else {
+      // 5+ cards: Responsive overlap & parabolic fan
+      const maxAngle = Math.min(18, Math.max(10, 40 / Math.sqrt(total)));
+      rotationDeg = Math.max(-18, Math.min(18, (offsetFromMid / Math.max(1, mid)) * maxAngle));
+      yOffset = Math.abs(offsetFromMid) * 2.8;
+
+      // Calculate dynamic overlap to fit nicely
+      const baseOverlap = Math.min(-22, Math.max(-36, -Math.round(20 + total * 1.4)));
+      marginLeft = index === 0 ? 0 : baseOverlap;
+    }
+
+    return { rotationDeg, yOffset, marginLeft };
+  };
+
   return (
     <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <Text style={styles.headerLabel}>YOUR HAND</Text>
-        <View style={styles.countBadge}>
-          <Text style={styles.countBadgeText}>{hand.length} Cards</Text>
-        </View>
-      </View>
-
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          isFewCards && styles.scrollContentCentered,
+        ]}
       >
         {hand.map((card, index) => {
-          // Playable determination
           let isPlayable = false;
           if (isMyTurn && !disabled) {
             if (isDrawPhase) {
-              // Can only play the drawn card if playable
               isPlayable = card.id === drawnCardId && UnoRules.canPlayCard(topCard, activeColor, card);
             } else {
               isPlayable = UnoRules.canPlayCard(topCard, activeColor, card);
             }
           }
 
-          // Fan rotation calculations
-          const total = hand.length;
-          const mid = (total - 1) / 2;
-          const offsetFromMid = index - mid;
-          const rotationDeg = total > 4 ? Math.max(-10, Math.min(10, offsetFromMid * 1.8)) : 0;
-          const yOffset = total > 4 ? Math.abs(offsetFromMid) * 2 : 0;
+          const { rotationDeg, yOffset, marginLeft } = calculateCardLayout(index);
 
           return (
             <View
               key={card.id}
               style={[
                 styles.cardWrapper,
+                { marginLeft },
                 {
-                  marginLeft: index === 0 ? 0 : -22,
                   transform: [
                     { rotate: `${rotationDeg}deg` },
-                    { translateY: yOffset },
+                    { translateY: isPlayable ? yOffset - 12 : yOffset },
                   ],
-                  zIndex: isPlayable ? 50 + index : index,
+                  zIndex: isPlayable ? 60 + index : 10 + index,
                 },
               ]}
             >
@@ -99,42 +129,25 @@ export const UnoHandView: React.FC<UnoHandViewProps> = ({
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    paddingBottom: 8,
-  },
-  headerRow: {
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    marginBottom: 6,
-  },
-  headerLabel: {
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 1,
-    color: '#B0C2B6',
-  },
-  countBadge: {
-    backgroundColor: 'rgba(255,255,255,0.12)',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
-  },
-  countBadgeText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#F1F5F2',
+    justifyContent: 'center',
+    paddingTop: 0,
+    paddingBottom: 2,
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingVertical: 10,
-    alignItems: 'center',
+    alignItems: 'flex-end',
+    height: 120,
+  },
+  scrollContentCentered: {
+    justifyContent: 'center',
+    flexGrow: 1,
   },
   cardWrapper: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 5,
   },
 });
 
