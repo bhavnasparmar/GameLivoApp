@@ -5,6 +5,7 @@ export const STORAGE_KEYS = {
   ACCESS_TOKEN: '@gamelivo/accessToken',
   REFRESH_TOKEN: '@gamelivo/refreshToken',
   USER_ID: '@gamelivo/userId',
+  USER_PROFILE: '@gamelivo/userProfile',
 
   // User preferences
   THEME_MODE: '@gamelivo/themeMode',

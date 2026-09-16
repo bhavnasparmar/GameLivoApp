@@ -45,7 +45,7 @@ export type GameStackParamList = {
 
   // Uno
   UnoHome: undefined;
-  UnoMode: { initialMode?: 'computer' | 'local' | 'rules' } | undefined;
+  UnoMode: { initialMode?: 'computer' | 'rules' } | undefined;
   UnoLobby: { lobbyId?: string; isHost?: boolean; mode?: 'private' | 'random' } | undefined;
   UnoGame: { matchId?: string; mode?: any; difficulty?: any; playerCount?: 2 | 4; timeSeconds?: number; player1Name?: string; player2Name?: string };
   UnoResult: { matchId?: string; gameState?: any; winnerId?: string; mode?: any; difficulty?: any };

@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
+  Animated,
+  Easing,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 import { UnoPlayer } from '../../../../gameEngine/uno/unoTypes';
@@ -12,7 +14,12 @@ import UnoCardView from './UnoCardView';
 interface UnoOpponentHandProps {
   player: UnoPlayer;
   isCurrentTurn: boolean;
-  position?: 'top' | 'left' | 'right';
+  position?: 'top' | 'topRight' | 'right' | 'bottomRight' | 'bottomLeft' | 'left' | 'topLeft' | 'bottom';
+  ringColor?: string;
+  isMe?: boolean;
+  timeLeft?: number;
+  maxTime?: number;
+  lastActionText?: string;
   onCatchUno?: (playerId: string) => void;
   canCatchUno?: boolean;
 }
@@ -21,88 +28,83 @@ export const UnoOpponentHand: React.FC<UnoOpponentHandProps> = ({
   player,
   isCurrentTurn,
   position = 'top',
+  ringColor = '#2ECC71',
+  isMe = false,
+  timeLeft = 15,
+  maxTime = 15,
+  lastActionText,
   onCatchUno,
   canCatchUno = false,
 }) => {
-  // Show up to 6 visual card backs in the fan stack
-  const visibleCardsCount = Math.min(6, Math.max(1, player.hand.length));
-  const dummyCards = Array.from({ length: visibleCardsCount });
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const bubbleScaleAnim = useRef(new Animated.Value(0)).current;
 
-  const isVertical = position === 'left' || position === 'right';
+  // Pulse avatar ring with high-intensity scale when it's this player's turn
+  useEffect(() => {
+    let anim: Animated.CompositeAnimation;
+    if (isCurrentTurn) {
+      anim = Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, {
+            toValue: 1.16,
+            duration: 500,
+            easing: Easing.ease,
+            useNativeDriver: true,
+          }),
+          Animated.timing(pulseAnim, {
+            toValue: 1.0,
+            duration: 500,
+            easing: Easing.ease,
+            useNativeDriver: true,
+          }),
+        ]),
+      );
+      anim.start();
+    } else {
+      pulseAnim.setValue(1);
+    }
+    return () => anim?.stop();
+  }, [isCurrentTurn]);
+
+  // Action speech bubble animation
+  useEffect(() => {
+    if (lastActionText) {
+      bubbleScaleAnim.setValue(0);
+      Animated.spring(bubbleScaleAnim, {
+        toValue: 1,
+        friction: 5,
+        tension: 45,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [lastActionText]);
+
+  const cardsCount = player.hand ? player.hand.length : 0;
+  const visualCardsCount = Math.min(4, Math.max(1, cardsCount));
+  const dummyFanCards = Array.from({ length: visualCardsCount });
 
   return (
-    <View
-      style={[
-        styles.container,
-        position === 'top' && styles.topLayout,
-        position === 'left' && styles.leftLayout,
-        position === 'right' && styles.rightLayout,
-      ]}
-    >
-      {/* Player Header Avatar Bar */}
-      <View
-        style={[
-          styles.playerInfoCard,
-          isCurrentTurn && styles.activePlayerCardGlow,
-        ]}
-      >
-        <LinearGradient
-          colors={
-            isCurrentTurn
-              ? ['#F1C40F', '#D35400']
-              : ['#2C3E50', '#1A252F']
-          }
-          style={styles.avatarCircle}
+    <View style={[styles.seatContainer, isCurrentTurn && styles.activeSeatElevated]}>
+      {/* Speech Action Bubble */}
+      {lastActionText ? (
+        <Animated.View
+          style={[
+            styles.speechBubbleContainer,
+            { transform: [{ scale: bubbleScaleAnim }] },
+          ]}
         >
-          <Text style={styles.avatarText}>{player.avatar || '🤖'}</Text>
-        </LinearGradient>
-
-        <View style={styles.nameBlock}>
-          <Text style={styles.playerNameText} numberOfLines={1}>
-            {player.name}
-          </Text>
-          <Text style={styles.cardCountText}>
-            {player.hand.length} {player.hand.length === 1 ? 'card' : 'cards'}
-          </Text>
-        </View>
-
-        {/* UNO Called / Warning Badge */}
-        {player.hand.length === 1 && (
-          <View
-            style={[
-              styles.unoTag,
-              player.hasCalledUno ? styles.unoCalledTag : styles.unoVulnerableTag,
-            ]}
+          <LinearGradient
+            colors={['#1E272E', '#0D1117']}
+            style={styles.speechBubbleGradient}
           >
-            <Text style={styles.unoTagText}>
-              {player.hasCalledUno ? 'UNO! 🔥' : 'NO UNO ⚠️'}
+            <Text style={styles.speechBubbleText} numberOfLines={2}>
+              {lastActionText}
             </Text>
-          </View>
-        )}
-      </View>
+          </LinearGradient>
+        </Animated.View>
+      ) : null}
 
-      {/* Opponent Card Stack */}
-      <View
-        style={[
-          styles.cardsStack,
-          isVertical ? styles.verticalStack : styles.horizontalStack,
-        ]}
-      >
-        {dummyCards.map((_, idx) => (
-          <View
-            key={`opp_card_${idx}`}
-            style={[
-              styles.cardStackItem,
-              !isVertical && { marginLeft: idx === 0 ? 0 : -28 },
-              isVertical && { marginTop: idx === 0 ? 0 : -32 },
-            ]}
-          >
-            <UnoCardView isBack size="small" />
-          </View>
-        ))}
-      </View>
-
-      {/* Catch Uno Button (Appears if opponent holds 1 card without shouting UNO!) */}
+      {/* Catch UNO Alert Button */}
       {canCatchUno && onCatchUno && (
         <TouchableOpacity
           activeOpacity={0.85}
@@ -111,130 +113,330 @@ export const UnoOpponentHand: React.FC<UnoOpponentHandProps> = ({
         >
           <LinearGradient
             colors={['#E74C3C', '#C0392B']}
-            style={styles.catchUnoGradient}
+            style={styles.catchGradient}
           >
-            <Text style={styles.catchUnoBtnText}>⚡ CATCH UNO!</Text>
+            <Text style={styles.catchText}>⚡ CATCH UNO!</Text>
           </LinearGradient>
         </TouchableOpacity>
+      )}
+
+      {/* Host Crown */}
+      {player.isHost && (
+        <View style={styles.crownWrapper}>
+          <Text style={styles.crownEmoji}>👑</Text>
+        </View>
+      )}
+
+      {/* Active Turn Pulsing Glow Arrow (Pointing at active avatar) */}
+      {isCurrentTurn && (
+        <View style={styles.topTurnArrowWrap}>
+          <Text style={styles.topTurnArrowGlyph}>▼</Text>
+        </View>
+      )}
+
+      {/* Avatar Container with High-Intensity Glowing Ring */}
+      <View style={styles.avatarGlowWrapper}>
+        <Animated.View
+          style={[
+            styles.avatarRing,
+            isCurrentTurn
+              ? styles.activeAvatarRingGlow
+              : {
+                  borderColor: ringColor,
+                  shadowColor: ringColor,
+                  shadowOpacity: 0.45,
+                  shadowRadius: 4,
+                },
+            { transform: [{ scale: isCurrentTurn ? pulseAnim : 1 }] },
+          ]}
+        >
+          <LinearGradient
+            colors={
+              isCurrentTurn
+                ? ['#2ECC71', '#1B8A4C']
+                : ['#2D3436', '#1E272E']
+            }
+            style={styles.avatarInnerCircle}
+          >
+            <Text style={styles.avatarEmojiText}>{player.avatar || '👤'}</Text>
+          </LinearGradient>
+        </Animated.View>
+
+        {/* Card Count Circular Badge */}
+        <View
+          style={[
+            styles.cardCountBadge,
+            isCurrentTurn && styles.cardCountBadgeActive,
+          ]}
+        >
+          <Text style={styles.cardCountText}>{cardsCount}</Text>
+        </View>
+      </View>
+
+      {/* Player Name Pill (Highlights brightly on turn) */}
+      <View
+        style={[
+          styles.namePill,
+          isCurrentTurn && styles.namePillActive,
+        ]}
+      >
+        <Text
+          style={[
+            styles.namePillText,
+            isCurrentTurn && styles.namePillTextActive,
+          ]}
+          numberOfLines={1}
+        >
+          {isMe ? 'You' : player.name}
+        </Text>
+      </View>
+
+      {/* Turn Status Timer Badge */}
+      {isCurrentTurn && (
+        <View style={styles.activeTurnTimerBadge}>
+          <Text style={styles.activeTurnTimerText}>
+            {isMe ? `⏳ ${timeLeft}s` : `🤖 ${timeLeft}s`}
+          </Text>
+        </View>
+      )}
+
+      {/* Mini Fanned Uno Cards */}
+      {!isMe && cardsCount > 0 && (
+        <View style={styles.miniCardFanRow}>
+          {dummyFanCards.map((_, idx) => {
+            const total = visualCardsCount;
+            const mid = (total - 1) / 2;
+            const offset = idx - mid;
+            const rotation = offset * 8;
+            const yOffset = Math.abs(offset) * 1.2;
+
+            return (
+              <View
+                key={idx}
+                style={[
+                  styles.miniCardWrapper,
+                  {
+                    marginLeft: idx === 0 ? 0 : -10,
+                    transform: [
+                      { rotate: `${rotation}deg` },
+                      { translateY: yOffset },
+                    ],
+                    zIndex: 10 + idx,
+                  },
+                ]}
+              >
+                <UnoCardView isBack size="mini" />
+              </View>
+            );
+          })}
+        </View>
       )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  seatContainer: {
     alignItems: 'center',
     justifyContent: 'center',
+    position: 'relative',
+    minWidth: 54,
     zIndex: 10,
   },
-  topLayout: {
-    flexDirection: 'column',
-    alignItems: 'center',
+  activeSeatElevated: {
+    zIndex: 35,
   },
-  leftLayout: {
-    flexDirection: 'column',
-    alignItems: 'flex-start',
+  crownWrapper: {
+    marginBottom: -3,
+    zIndex: 6,
   },
-  rightLayout: {
-    flexDirection: 'column',
-    alignItems: 'flex-end',
+  crownEmoji: {
+    fontSize: 13,
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
-  playerInfoCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(15, 23, 19, 0.85)',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
-    gap: 8,
-    marginBottom: 6,
+  topTurnArrowWrap: {
+    marginBottom: -2,
+    zIndex: 8,
   },
-  activePlayerCardGlow: {
-    borderColor: '#F1C40F',
-    shadowColor: '#F1C40F',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.8,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  avatarCircle: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 16,
-  },
-  nameBlock: {
-    maxWidth: 90,
-  },
-  playerNameText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#FFFFFF',
-  },
-  cardCountText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#A2B4A7',
-  },
-  unoTag: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  unoCalledTag: {
-    backgroundColor: 'rgba(230, 57, 70, 0.3)',
-    borderColor: '#E63946',
-    borderWidth: 1,
-  },
-  unoVulnerableTag: {
-    backgroundColor: 'rgba(241, 196, 15, 0.3)',
-    borderColor: '#F1C40F',
-    borderWidth: 1,
-  },
-  unoTagText: {
-    fontSize: 9,
+  topTurnArrowGlyph: {
+    fontSize: 13,
+    color: '#2ECC71',
     fontWeight: '900',
-    color: '#FFFFFF',
+    textShadowColor: 'rgba(46, 204, 113, 0.95)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
   },
-  cardsStack: {
+  avatarGlowWrapper: {
+    position: 'relative',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  horizontalStack: {
-    flexDirection: 'row',
+  avatarRing: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    padding: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#1E272E',
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 5,
   },
-  verticalStack: {
-    flexDirection: 'column',
+  activeAvatarRingGlow: {
+    borderWidth: 3,
+    borderColor: '#2ECC71',
+    backgroundColor: '#2ECC71',
+    shadowColor: '#2ECC71',
+    shadowOpacity: 1,
+    shadowRadius: 14,
+    elevation: 10,
   },
-  cardStackItem: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  catchUnoBtn: {
-    marginTop: 6,
-    borderRadius: 12,
+  avatarInnerCircle: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
     overflow: 'hidden',
   },
-  catchUnoGradient: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+  avatarEmojiText: {
+    fontSize: 18,
+  },
+  cardCountBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -3,
+    backgroundColor: '#192A56',
+    borderRadius: 8,
+    minWidth: 15,
+    height: 15,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#718093',
+    paddingHorizontal: 2,
+    zIndex: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.6,
+    shadowRadius: 2,
+    elevation: 4,
   },
-  catchUnoBtnText: {
-    fontSize: 10,
+  cardCountBadgeActive: {
+    backgroundColor: '#E74C3C',
+    borderColor: '#FFFFFF',
+  },
+  cardCountText: {
+    fontSize: 8.5,
     fontWeight: '900',
     color: '#FFFFFF',
-    letterSpacing: 0.5,
+  },
+  namePill: {
+    backgroundColor: 'rgba(15, 20, 25, 0.88)',
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 8,
+    marginTop: 2,
+    borderWidth: 0.8,
+    borderColor: 'rgba(255, 255, 255, 0.12)',
+    maxWidth: 62,
+  },
+  namePillActive: {
+    backgroundColor: '#2ECC71',
+    borderColor: '#FFFFFF',
+    shadowColor: '#2ECC71',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  namePillText: {
+    fontSize: 9,
+    fontWeight: '800',
+    color: '#F5F6FA',
+    textAlign: 'center',
+  },
+  namePillTextActive: {
+    color: '#062814',
+    fontWeight: '900',
+  },
+  activeTurnTimerBadge: {
+    backgroundColor: 'rgba(46, 204, 113, 0.25)',
+    borderWidth: 1,
+    borderColor: '#2ECC71',
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    marginTop: 2,
+    alignItems: 'center',
+  },
+  activeTurnTimerText: {
+    fontSize: 8,
+    fontWeight: '900',
+    color: '#2ECC71',
+    letterSpacing: 0.3,
+  },
+  miniCardFanRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+    height: 26,
+  },
+  miniCardWrapper: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.4,
+    shadowRadius: 2,
+  },
+  speechBubbleContainer: {
+    position: 'absolute',
+    top: -24,
+    zIndex: 25,
+    alignItems: 'center',
+  },
+  speechBubbleGradient: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#F1C40F',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.5,
+    shadowRadius: 2,
+  },
+  speechBubbleText: {
+    fontSize: 8,
+    fontWeight: '800',
+    color: '#F1C40F',
+    textAlign: 'center',
+  },
+  catchUnoBtn: {
+    position: 'absolute',
+    top: -20,
+    borderRadius: 8,
+    overflow: 'hidden',
+    zIndex: 30,
+    shadowColor: '#E74C3C',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+    elevation: 6,
+  },
+  catchGradient: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  catchText: {
+    fontSize: 8,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 0.3,
   },
 });
 

@@ -15,7 +15,11 @@ import {
   UNO_WILD_THEME,
 } from '../../../../gameEngine/uno/unoConstants';
 
-export type UnoCardSize = 'tiny' | 'small' | 'medium' | 'large' | 'hand' | 'center';
+export type UnoCardSize = 'mini' | 'tiny' | 'small' | 'medium' | 'large' | 'hand' | 'center';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+// Proportional scale ratio based on standard 390px mobile screen
+const scaleFactor = Math.min(1.2, Math.max(0.85, SCREEN_WIDTH / 390));
 
 interface UnoCardViewProps {
   card?: UnoCard;
@@ -23,21 +27,43 @@ interface UnoCardViewProps {
   size?: UnoCardSize;
   isPlayable?: boolean;
   isSelected?: boolean;
+  customWidth?: number;
+  customHeight?: number;
   onPress?: () => void;
   disabled?: boolean;
   style?: any;
 }
 
-const SIZE_CONFIGS: Record<
-  UnoCardSize,
-  { width: number; height: number; radius: number; fontMain: number; fontCorner: number; ovalW: number; ovalH: number }
-> = {
-  tiny: { width: 32, height: 48, radius: 4, fontMain: 14, fontCorner: 8, ovalW: 24, ovalH: 38 },
-  small: { width: 44, height: 66, radius: 6, fontMain: 18, fontCorner: 9, ovalW: 34, ovalH: 52 },
-  medium: { width: 56, height: 84, radius: 8, fontMain: 24, fontCorner: 11, ovalW: 44, ovalH: 68 },
-  hand: { width: 68, height: 104, radius: 10, fontMain: 30, fontCorner: 13, ovalW: 54, ovalH: 84 },
-  center: { width: 86, height: 130, radius: 12, fontMain: 38, fontCorner: 16, ovalW: 68, ovalH: 106 },
-  large: { width: 96, height: 146, radius: 14, fontMain: 44, fontCorner: 18, ovalW: 76, ovalH: 120 },
+const BASE_WIDTHS: Record<UnoCardSize, number> = {
+  mini: Math.round(18 * scaleFactor),
+  tiny: Math.round(28 * scaleFactor),
+  small: Math.round(38 * scaleFactor),
+  medium: Math.round(48 * scaleFactor),
+  center: Math.round(54 * scaleFactor),
+  hand: Math.round(72 * scaleFactor),
+  large: Math.round(88 * scaleFactor),
+};
+
+const getResponsiveConfig = (size: UnoCardSize, customW?: number, customH?: number) => {
+  const width = customW || BASE_WIDTHS[size];
+  const height = customH || Math.round(width * 1.5);
+  const radius = Math.max(3, Math.round(width * 0.14));
+  const borderW = Math.max(1, Math.round(width * 0.03));
+  const ovalW = Math.round(width * 0.58);
+  const ovalH = Math.round(height * 0.64);
+  const fontMain = Math.round(width * 0.46);
+  const fontCorner = Math.max(5, Math.round(width * 0.18));
+
+  return {
+    width,
+    height,
+    radius,
+    borderW,
+    ovalW,
+    ovalH,
+    fontMain,
+    fontCorner,
+  };
 };
 
 export const UnoCardView: React.FC<UnoCardViewProps> = ({
@@ -46,11 +72,13 @@ export const UnoCardView: React.FC<UnoCardViewProps> = ({
   size = 'hand',
   isPlayable = false,
   isSelected = false,
+  customWidth,
+  customHeight,
   onPress,
   disabled = false,
   style,
 }) => {
-  const cfg = SIZE_CONFIGS[size];
+  const cfg = getResponsiveConfig(size, customWidth, customHeight);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -58,13 +86,13 @@ export const UnoCardView: React.FC<UnoCardViewProps> = ({
       const pulse = Animated.loop(
         Animated.sequence([
           Animated.timing(pulseAnim, {
-            toValue: 1.05,
-            duration: 700,
+            toValue: 1.04,
+            duration: 650,
             useNativeDriver: true,
           }),
           Animated.timing(pulseAnim, {
             toValue: 1.0,
-            duration: 700,
+            duration: 650,
             useNativeDriver: true,
           }),
         ]),
@@ -76,41 +104,56 @@ export const UnoCardView: React.FC<UnoCardViewProps> = ({
     }
   }, [isPlayable]);
 
+  // Render Uno Card Back
   const renderCardBack = () => {
     return (
-      <LinearGradient
-        colors={['#1E272E', '#0A0E11']}
+      <View
         style={[
-          styles.cardContainer,
+          styles.cardOuterWhiteBorder,
           {
             width: cfg.width,
             height: cfg.height,
             borderRadius: cfg.radius,
-            borderColor: '#F1C40F',
-            borderWidth: Math.max(1, cfg.radius / 6),
+            padding: cfg.borderW,
           },
         ]}
       >
-        {/* Inner black card base with yellow/red badge */}
-        <View style={styles.cardBackInner}>
-          <LinearGradient
-            colors={['#E63946', '#B30B00']}
+        <LinearGradient
+          colors={['#18191C', '#0A0B0D']}
+          style={[styles.cardInnerBack, { borderRadius: Math.max(1, cfg.radius - 2) }]}
+        >
+          {/* Inner Yellow Accent Ring */}
+          <View
             style={[
-              styles.cardBackOval,
-              { width: cfg.ovalW, height: cfg.ovalH * 0.75, borderRadius: cfg.ovalW / 2 },
+              styles.cardBackYellowRim,
+              {
+                width: cfg.ovalW,
+                height: Math.round(cfg.ovalH * 0.78),
+                borderRadius: Math.round(cfg.ovalW / 2),
+                borderWidth: Math.max(1, Math.round(cfg.borderW * 0.9)),
+              },
             ]}
           >
-            <Text
-              style={[
-                styles.cardBackUnoText,
-                { fontSize: cfg.fontMain * 0.75, textShadowColor: '#000', textShadowOffset: { width: 1, height: 1 }, textShadowRadius: 2 },
-              ]}
+            {/* Tilted Red Oval */}
+            <LinearGradient
+              colors={['#E62429', '#B31419']}
+              style={styles.cardBackRedOval}
             >
-              UNO
-            </Text>
-          </LinearGradient>
-        </View>
-      </LinearGradient>
+              <Text
+                style={[
+                  styles.cardBackUnoText,
+                  {
+                    fontSize: Math.round(cfg.fontMain * 0.7),
+                    textShadowRadius: 1,
+                  },
+                ]}
+              >
+                UNO
+              </Text>
+            </LinearGradient>
+          </View>
+        </LinearGradient>
+      </View>
     );
   };
 
@@ -128,7 +171,119 @@ export const UnoCardView: React.FC<UnoCardViewProps> = ({
     : UNO_COLOR_THEMES[card.color as UnoActiveColor] || UNO_COLOR_THEMES.red;
 
   const displayGlyph = UNO_VALUE_GLYPHS[card.value] || card.value;
-  const isAction = ['skip', 'reverse', 'draw2', 'wild', 'wild_draw4'].includes(card.value);
+
+  const renderCenterContent = () => {
+    if (card.value === 'wild') {
+      return (
+        <View style={styles.wildWheelContainer}>
+          <View style={[styles.wildQuadrant, { backgroundColor: '#E62429' }]} />
+          <View style={[styles.wildQuadrant, { backgroundColor: '#F5B800' }]} />
+          <View style={[styles.wildQuadrant, { backgroundColor: '#0072CE' }]} />
+          <View style={[styles.wildQuadrant, { backgroundColor: '#00A651' }]} />
+        </View>
+      );
+    }
+
+    if (card.value === 'wild_draw4') {
+      return (
+        <View style={styles.wildDraw4Container}>
+          <Text style={[styles.wildPlus4Text, { fontSize: Math.round(cfg.fontMain * 0.55) }]}>
+            +4
+          </Text>
+          <View style={styles.fourTilesRow}>
+            <View style={[styles.tileItem, { backgroundColor: '#E62429' }]} />
+            <View style={[styles.tileItem, { backgroundColor: '#0072CE' }]} />
+            <View style={[styles.tileItem, { backgroundColor: '#00A651' }]} />
+            <View style={[styles.tileItem, { backgroundColor: '#F5B800' }]} />
+          </View>
+        </View>
+      );
+    }
+
+    if (card.value === 'draw2') {
+      return (
+        <View style={styles.draw2Container}>
+          <Text
+            style={[
+              styles.actionNumberText,
+              { fontSize: Math.round(cfg.fontMain * 0.72), color: colorTheme.primary },
+            ]}
+          >
+            +2
+          </Text>
+          <View style={styles.dualCardsIcon}>
+            <View
+              style={[
+                styles.miniCardIcon,
+                {
+                  width: Math.max(7, Math.round(cfg.width * 0.13)),
+                  height: Math.max(10, Math.round(cfg.height * 0.11)),
+                  borderColor: colorTheme.primary,
+                  transform: [{ rotate: '-12deg' }],
+                },
+              ]}
+            />
+            <View
+              style={[
+                styles.miniCardIcon,
+                {
+                  width: Math.max(7, Math.round(cfg.width * 0.13)),
+                  height: Math.max(10, Math.round(cfg.height * 0.11)),
+                  borderColor: colorTheme.primary,
+                  marginLeft: -4,
+                  transform: [{ rotate: '8deg' }],
+                },
+              ]}
+            />
+          </View>
+        </View>
+      );
+    }
+
+    if (card.value === 'reverse') {
+      return (
+        <View style={styles.reverseContainer}>
+          <Text
+            style={[
+              styles.actionSymbolText,
+              { fontSize: Math.round(cfg.fontMain * 0.75), color: colorTheme.primary },
+            ]}
+          >
+            ⇄
+          </Text>
+        </View>
+      );
+    }
+
+    if (card.value === 'skip') {
+      return (
+        <View style={styles.skipContainer}>
+          <Text
+            style={[
+              styles.actionSymbolText,
+              { fontSize: Math.round(cfg.fontMain * 0.75), color: colorTheme.primary },
+            ]}
+          >
+            ⊘
+          </Text>
+        </View>
+      );
+    }
+
+    return (
+      <Text
+        style={[
+          styles.mainNumberText,
+          {
+            fontSize: cfg.fontMain,
+            color: colorTheme.primary,
+          },
+        ]}
+      >
+        {displayGlyph}
+      </Text>
+    );
+  };
 
   const cardContent = (
     <Animated.View
@@ -141,109 +296,91 @@ export const UnoCardView: React.FC<UnoCardViewProps> = ({
         },
       ]}
     >
-      <LinearGradient
-        colors={colorTheme.gradient}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+      <View
         style={[
-          styles.cardContainer,
+          styles.cardOuterWhiteBorder,
           {
             width: cfg.width,
             height: cfg.height,
             borderRadius: cfg.radius,
-            borderColor: isPlayable ? '#FFFFFF' : colorTheme.border,
-            borderWidth: isPlayable ? 2.2 : 1.2,
+            padding: cfg.borderW,
+            borderColor: isPlayable ? '#FFFFFF' : '#EAECEE',
             shadowColor: isPlayable ? '#FFFFFF' : colorTheme.glow,
-            shadowOpacity: isPlayable ? 0.9 : 0.45,
+            shadowOpacity: isPlayable ? 0.95 : 0.4,
             shadowRadius: isPlayable ? 10 : 4,
             elevation: isPlayable ? 8 : 3,
           },
         ]}
       >
-        {/* Top-Left Mini Index */}
-        <View style={styles.topLeftIndex}>
-          <Text
-            style={[
-              styles.cornerText,
-              { fontSize: cfg.fontCorner, color: colorTheme.text },
-            ]}
-          >
-            {displayGlyph}
-          </Text>
-        </View>
-
-        {/* Center Oval with Value/Action */}
-        <View
+        <LinearGradient
+          colors={colorTheme.gradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
           style={[
-            styles.centerOval,
-            {
-              width: cfg.ovalW,
-              height: cfg.ovalH,
-              borderRadius: cfg.ovalW / 2,
-              backgroundColor: isWild ? '#12171A' : '#FFFFFF',
-              borderColor: isWild ? '#FFCC00' : 'rgba(255,255,255,0.85)',
-              borderWidth: isWild ? 1.5 : 1,
-            },
+            styles.cardFace,
+            { borderRadius: Math.max(1, cfg.radius - 2) },
           ]}
         >
-          {isWild ? (
-            /* 4-Color Wild Center Pie */
-            <View style={styles.wildPieContainer}>
-              <View style={[styles.wildQuadrant, { backgroundColor: '#E63946' }]} />
-              <View style={[styles.wildQuadrant, { backgroundColor: '#1D70B8' }]} />
-              <View style={[styles.wildQuadrant, { backgroundColor: '#2A9D8F' }]} />
-              <View style={[styles.wildQuadrant, { backgroundColor: '#F4A261' }]} />
-              <View style={styles.wildCenterBadge}>
-                <Text
-                  style={[
-                    styles.wildSymbolText,
-                    { fontSize: cfg.fontMain * 0.7, color: '#FFFFFF' },
-                  ]}
-                >
-                  {card.value === 'wild_draw4' ? '+4' : '★'}
-                </Text>
-              </View>
-            </View>
-          ) : (
-            /* Standard Bold Value */
+          {/* Top-Left Corner Index */}
+          <View style={[styles.cornerIndex, styles.topLeftIndex]}>
             <Text
               style={[
-                styles.mainSymbolText,
+                styles.cornerText,
                 {
-                  fontSize: isAction ? cfg.fontMain * 0.85 : cfg.fontMain,
-                  color: colorTheme.primary,
+                  fontSize: cfg.fontCorner,
+                  color: '#FFFFFF',
                 },
               ]}
             >
               {displayGlyph}
             </Text>
-          )}
-        </View>
+          </View>
 
-        {/* Bottom-Right Mini Index (Inverted) */}
-        <View style={styles.bottomRightIndex}>
-          <Text
+          {/* Center Tilted White Oval */}
+          <View
             style={[
-              styles.cornerText,
-              { fontSize: cfg.fontCorner, color: colorTheme.text },
+              styles.centerOval,
+              {
+                width: cfg.ovalW,
+                height: cfg.ovalH,
+                borderRadius: Math.round(cfg.ovalW / 2),
+                backgroundColor: isWild ? '#12131A' : '#FFFFFF',
+                borderWidth: isWild ? 1.2 : 0,
+                borderColor: '#FFD700',
+              },
             ]}
           >
-            {displayGlyph}
-          </Text>
-        </View>
+            {renderCenterContent()}
+          </View>
 
-        {/* Playable Aura Shine */}
-        {isPlayable && (
-          <View style={styles.playableGlowRing} pointerEvents="none" />
-        )}
-      </LinearGradient>
+          {/* Bottom-Right Corner Index */}
+          <View style={[styles.cornerIndex, styles.bottomRightIndex]}>
+            <Text
+              style={[
+                styles.cornerText,
+                {
+                  fontSize: cfg.fontCorner,
+                  color: '#FFFFFF',
+                },
+              ]}
+            >
+              {displayGlyph}
+            </Text>
+          </View>
+
+          {/* Playable Border Highlight */}
+          {isPlayable && (
+            <View style={styles.playableInnerAura} pointerEvents="none" />
+          )}
+        </LinearGradient>
+      </View>
     </Animated.View>
   );
 
   if (onPress && !disabled) {
     return (
       <TouchableOpacity
-        activeOpacity={0.8}
+        activeOpacity={0.82}
         onPress={onPress}
         style={[styles.wrapper, style]}
       >
@@ -260,107 +397,161 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardContainer: {
+  cardOuterWhiteBorder: {
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#ECEFF1',
+    shadowOffset: { width: 0, height: 3 },
+  },
+  cardFace: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
     overflow: 'hidden',
-    shadowOffset: { width: 0, height: 4 },
+  },
+  cornerIndex: {
+    position: 'absolute',
+    zIndex: 4,
   },
   topLeftIndex: {
-    position: 'absolute',
-    top: 3,
-    left: 5,
-    zIndex: 2,
+    top: 2,
+    left: 3,
   },
   bottomRightIndex: {
-    position: 'absolute',
-    bottom: 3,
-    right: 5,
+    bottom: 2,
+    right: 3,
     transform: [{ rotate: '180deg' }],
-    zIndex: 2,
   },
   cornerText: {
     fontWeight: '900',
     fontStyle: 'italic',
-    textShadowColor: 'rgba(0,0,0,0.4)',
-    textShadowOffset: { width: 1, height: 1 },
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0.8, height: 0.8 },
     textShadowRadius: 1,
   },
   centerOval: {
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ rotate: '-25deg' }],
+    transform: [{ rotate: '-28deg' }],
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3,
+    shadowOffset: { width: 0, height: 1.5 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
   },
-  mainSymbolText: {
+  mainNumberText: {
     fontWeight: '900',
     fontStyle: 'italic',
     textAlign: 'center',
-    transform: [{ rotate: '25deg' }],
-    textShadowColor: 'rgba(0,0,0,0.15)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
+    transform: [{ rotate: '28deg' }],
+    textShadowColor: 'rgba(0,0,0,0.12)',
+    textShadowOffset: { width: 0.8, height: 0.8 },
+    textShadowRadius: 1,
   },
-  wildPieContainer: {
+  actionSymbolText: {
+    fontWeight: '900',
+    textAlign: 'center',
+    transform: [{ rotate: '28deg' }],
+  },
+  actionNumberText: {
+    fontWeight: '900',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    transform: [{ rotate: '28deg' }],
+  },
+  draw2Container: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dualCardsIcon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: -2,
+    transform: [{ rotate: '28deg' }],
+  },
+  miniCardIcon: {
+    borderRadius: 1.5,
+    borderWidth: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  reverseContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  skipContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  wildWheelContainer: {
     width: '100%',
     height: '100%',
     flexDirection: 'row',
     flexWrap: 'wrap',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
+    transform: [{ rotate: '28deg' }],
   },
   wildQuadrant: {
     width: '50%',
     height: '50%',
   },
-  wildCenterBadge: {
-    position: 'absolute',
-    width: '65%',
-    height: '65%',
-    borderRadius: 100,
-    backgroundColor: '#12171A',
+  wildDraw4Container: {
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#FFD700',
-    transform: [{ rotate: '25deg' }],
+    transform: [{ rotate: '28deg' }],
   },
-  wildSymbolText: {
+  wildPlus4Text: {
+    color: '#FFFFFF',
     fontWeight: '900',
     fontStyle: 'italic',
+    marginBottom: 1,
   },
-  playableGlowRing: {
+  fourTilesRow: {
+    flexDirection: 'row',
+    gap: 1.5,
+  },
+  tileItem: {
+    width: 5,
+    height: 8,
+    borderRadius: 1,
+    borderWidth: 0.5,
+    borderColor: '#FFFFFF',
+  },
+  playableInnerAura: {
     ...StyleSheet.absoluteFill,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.7)',
-    borderRadius: 8,
-  },
-  cardBackInner: {
-    width: '92%',
-    height: '92%',
+    borderWidth: 1.8,
+    borderColor: 'rgba(255, 255, 255, 0.95)',
     borderRadius: 6,
-    backgroundColor: '#0F1316',
-    alignItems: 'center',
-    justifyContent: 'center',
   },
-  cardBackOval: {
+  cardInnerBack: {
+    width: '100%',
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ rotate: '-30deg' }],
-    borderWidth: 1.5,
+    overflow: 'hidden',
+  },
+  cardBackYellowRim: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    transform: [{ rotate: '-28deg' }],
     borderColor: '#F1C40F',
+    overflow: 'hidden',
+  },
+  cardBackRedOval: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cardBackUnoText: {
     fontWeight: '900',
     fontStyle: 'italic',
-    color: '#F1C40F',
-    letterSpacing: 1,
-    transform: [{ rotate: '30deg' }],
+    color: '#FFD700',
+    letterSpacing: 0.5,
+    textShadowColor: '#000000',
+    textShadowOffset: { width: 1, height: 1 },
   },
 });
 

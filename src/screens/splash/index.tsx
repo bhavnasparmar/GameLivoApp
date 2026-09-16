@@ -7,6 +7,7 @@ import {
   Animated,
   Easing,
   StatusBar,
+  Image,
 } from 'react-native';
 import LottieView from 'lottie-react-native';
 import LinearGradient from 'react-native-linear-gradient';
@@ -18,192 +19,319 @@ import { useAppSelector } from '../../redux/hooks';
 import { selectIsLoggedIn } from '../../redux/selectors/authSelectors';
 import { useAuth } from '../../hooks/useAuth';
 import { LOTTIE_ANIMATIONS } from '../../assets/lottie';
+import { IMAGES } from '../../assets/images';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
-// ─── 3D Miniature Background Dice Component ─────────────────────────────────
-const MiniBgDice: React.FC<{
+// ─── Floating Star Particle ──────────────────────────────────────────────────
+const FloatingStar: React.FC<{
   size: number;
-  style: any;
-  rotateDeg?: string;
-  opacity?: number;
-}> = ({ size, style, rotateDeg = '15deg', opacity = 0.75 }) => {
+  top: number;
+  left?: number;
+  right?: number;
+  delay?: number;
+}> = ({ size, top, left, right, delay = 0 }) => {
+  const twinkleAnim = useRef(new Animated.Value(0.3)).current;
+  const floatAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const twinkle = Animated.loop(
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.timing(twinkleAnim, {
+          toValue: 1,
+          duration: 1200,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        Animated.timing(twinkleAnim, {
+          toValue: 0.25,
+          duration: 1200,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    const float = Animated.loop(
+      Animated.sequence([
+        Animated.delay(delay * 0.5),
+        Animated.timing(floatAnim, {
+          toValue: -8,
+          duration: 2000,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+        Animated.timing(floatAnim, {
+          toValue: 6,
+          duration: 2000,
+          easing: Easing.inOut(Easing.quad),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    twinkle.start();
+    float.start();
+
+    return () => {
+      twinkle.stop();
+      float.stop();
+    };
+  }, [delay, twinkleAnim, floatAnim]);
+
   return (
-    <View
+    <Animated.View
+      pointerEvents="none"
       style={[
-        styles.miniDiceContainer,
+        styles.starParticle,
         {
-          width: size,
-          height: size,
-          borderRadius: size * 0.22,
-          transform: [{ rotate: rotateDeg }],
-          opacity,
+          top,
+          ...(left !== undefined ? { left } : {}),
+          ...(right !== undefined ? { right } : {}),
+          opacity: twinkleAnim,
+          transform: [{ translateY: floatAnim }],
         },
-        style,
       ]}
     >
-      <LinearGradient
-        colors={['#FFFFFF', '#E6E9F0', '#B0B5C0']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.miniDiceGradient}
-      >
-        <View style={styles.miniDicePipRow}>
-          <View style={[styles.miniPip, { width: size * 0.18, height: size * 0.18 }]} />
-          <View style={[styles.miniPip, { width: size * 0.18, height: size * 0.18 }]} />
-        </View>
-        <View style={[styles.miniPip, { width: size * 0.18, height: size * 0.18, alignSelf: 'center' }]} />
-        <View style={styles.miniDicePipRow}>
-          <View style={[styles.miniPip, { width: size * 0.18, height: size * 0.18 }]} />
-          <View style={[styles.miniPip, { width: size * 0.18, height: size * 0.18 }]} />
-        </View>
-      </LinearGradient>
-    </View>
+      <Text style={{ fontSize: size, color: '#FFDF00', textShadowColor: '#FFA500', textShadowRadius: 8 }}>
+        ✦
+      </Text>
+    </Animated.View>
   );
 };
 
-// ─── Golden 3D Star Icon ───────────────────────────────────────────────────
-const Gold3DStar: React.FC<{ size: number; style?: any }> = ({ size, style }) => (
-  <View style={[{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }, style]}>
-    <Text style={{ fontSize: size * 0.85, color: '#FFDF00', textShadowColor: '#FFA500', textShadowRadius: 8, textShadowOffset: { width: 0, height: 0 } }}>
-      ★
-    </Text>
-  </View>
+// ─── Ambient Poker Suit Symbol ───────────────────────────────────────────────
+const AmbientSuit: React.FC<{
+  symbol: string;
+  top: number;
+  left?: number;
+  right?: number;
+  size: number;
+  rotate: string;
+  opacity?: number;
+}> = ({ symbol, top, left, right, size, rotate, opacity = 0.2 }) => (
+  <Text
+    pointerEvents="none"
+    style={[
+      styles.ambientSuitText,
+      {
+        top,
+        ...(left !== undefined ? { left } : {}),
+        ...(right !== undefined ? { right } : {}),
+        fontSize: size,
+        opacity,
+        transform: [{ rotate }],
+      },
+    ]}
+  >
+    {symbol}
+  </Text>
 );
 
-// ─── Main Splash Screen ────────────────────────────────────────────────────
+// ─── Main Animated Splash Screen ─────────────────────────────────────────────
 const SplashScreen: React.FC = () => {
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const isLoggedIn = useAppSelector(selectIsLoggedIn);
   const { checkAuth } = useAuth();
 
+  const heroSize = Math.min(SCREEN_WIDTH * 0.88, 380);
+  const shineDistance = heroSize * 0.85;
+
   // Animations
-  const progressAnim = useRef(new Animated.Value(0)).current;
-  const shimmerAnim = useRef(new Animated.Value(0)).current;
+  const logoScaleAnim = useRef(new Animated.Value(0.6)).current;
+  const logoFadeAnim = useRef(new Animated.Value(0)).current;
   const floatAnim = useRef(new Animated.Value(0)).current;
-  const pulseAuraAnim = useRef(new Animated.Value(1)).current;
-  const contentFadeAnim = useRef(new Animated.Value(0)).current;
-  const contentScaleAnim = useRef(new Animated.Value(0.92)).current;
-  const ringRotateAnim = useRef(new Animated.Value(0)).current;
+  const glowPulseAnim = useRef(new Animated.Value(0.85)).current;
+  const shineTranslateAnim = useRef(new Animated.Value(-shineDistance)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const shimmerTranslateAnim = useRef(new Animated.Value(-80)).current;
+  const bottomFadeAnim = useRef(new Animated.Value(0)).current;
+  const exitFadeAnim = useRef(new Animated.Value(1)).current;
+
   const [loadingTextIndex, setLoadingTextIndex] = useState(0);
 
   const loadingMessages = [
-    'Loading Your Game World...',
-    'Connecting to Arena...',
+    'Connecting to Real-time Arena...',
+    'Loading Chess, Ludo & Uno...',
     'Preparing High Stakes Tables...',
-    'Ready to Play & Win!',
+    'Welcome to GameLivo!',
   ];
 
   useEffect(() => {
-    // 1. Entrance Fade & Scale
+    // 1. Entrance Spring for Hero Logo
     Animated.parallel([
-      Animated.timing(contentFadeAnim, {
+      Animated.timing(logoFadeAnim, {
         toValue: 1,
-        duration: 800,
+        duration: 700,
+        easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
-      Animated.spring(contentScaleAnim, {
+      Animated.spring(logoScaleAnim, {
         toValue: 1,
-        friction: 6,
-        tension: 40,
+        friction: 5.5,
+        tension: 42,
+        useNativeDriver: true,
+      }),
+      Animated.timing(bottomFadeAnim, {
+        toValue: 1,
+        duration: 900,
+        delay: 350,
+        easing: Easing.out(Easing.quad),
         useNativeDriver: true,
       }),
     ]).start();
 
-    // 2. Dice Floating Bobbing Animation
-    Animated.loop(
+    // 2. Continuous Hero Logo Floating Levitation
+    const floatLoop = Animated.loop(
       Animated.sequence([
         Animated.timing(floatAnim, {
-          toValue: -12,
-          duration: 1600,
+          toValue: -9,
+          duration: 1800,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
         Animated.timing(floatAnim, {
-          toValue: 6,
-          duration: 1600,
+          toValue: 5,
+          duration: 1800,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
       ])
-    ).start();
+    );
+    floatLoop.start();
 
-    // 3. Golden Aura Pulse
-    Animated.loop(
+    // 3. Golden Ambient Glow Pulsing Halo
+    const glowLoop = Animated.loop(
       Animated.sequence([
-        Animated.timing(pulseAuraAnim, {
+        Animated.timing(glowPulseAnim, {
           toValue: 1.15,
-          duration: 1400,
+          duration: 1600,
           easing: Easing.inOut(Easing.quad),
           useNativeDriver: true,
         }),
-        Animated.timing(pulseAuraAnim, {
-          toValue: 0.95,
-          duration: 1400,
+        Animated.timing(glowPulseAnim, {
+          toValue: 0.85,
+          duration: 1600,
           easing: Easing.inOut(Easing.quad),
           useNativeDriver: true,
         }),
       ])
-    ).start();
+    );
+    glowLoop.start();
 
-    // 4. Foreground Ring Continuous Spin
-    Animated.loop(
-      Animated.timing(ringRotateAnim, {
-        toValue: 1,
-        duration: 4500,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
+    // 4. Specular Glint Sweep across Logo (Slow & Dynamic Scaling)
+    const shineLoop = Animated.loop(
+      Animated.sequence([
+        Animated.delay(1000),
+        Animated.timing(shineTranslateAnim, {
+          toValue: shineDistance,
+          duration: 2200, // Smooth & slow pace
+          easing: Easing.inOut(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(shineTranslateAnim, {
+          toValue: -shineDistance,
+          duration: 0,
+          useNativeDriver: true,
+        }),
+        Animated.delay(1400),
+      ])
+    );
+    shineLoop.start();
 
-    // 5. Shimmer Sweep on Progress Bar
-    Animated.loop(
-      Animated.timing(shimmerAnim, {
-        toValue: 1,
-        duration: 1200,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    ).start();
-
-    // 6. Progress Bar Fill (0 to 100% in 2.8 seconds)
+    // 5. Loading Bar Progress Fill
     Animated.timing(progressAnim, {
       toValue: 1,
       duration: 2800,
-      easing: Easing.bezier(0.25, 0.1, 0.25, 1),
+      easing: Easing.bezier(0.2, 0.8, 0.2, 1),
       useNativeDriver: false,
     }).start();
 
-    // 7. Dynamic Loading Text Cycling
+    // 6. Progress Shimmer Light Beam
+    const shimmerLoop = Animated.loop(
+      Animated.timing(shimmerTranslateAnim, {
+        toValue: SCREEN_WIDTH * 0.75,
+        duration: 1300,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      })
+    );
+    shimmerLoop.start();
+
+    // 7. Cycle Loading Text
     const textInterval = setInterval(() => {
       setLoadingTextIndex((prev) => (prev + 1 < loadingMessages.length ? prev + 1 : prev));
     }, 700);
 
-    // 8. Navigate on Finish
-    const navTimeout = setTimeout(async () => {
+    // Check session early in background during splash animations
+    const checkAuthPromise = checkAuth();
+
+    // 8. Navigation transition on complete
+    const navTimer = setTimeout(async () => {
       clearInterval(textInterval);
-      const isAuthValid = await checkAuth();
-      if (isAuthValid || isLoggedIn) {
-        navigation.replace(ROUTES.MAIN as 'Main');
-      } else {
-        navigation.replace(ROUTES.AUTH as 'Auth');
-      }
-    }, 3100);
+
+      const isAuthValid = await checkAuthPromise;
+
+      // Smooth exit fade
+      Animated.timing(exitFadeAnim, {
+        toValue: 0,
+        duration: 400,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      }).start(() => {
+        if (isAuthValid || isLoggedIn) {
+          navigation.replace(ROUTES.MAIN as 'Main');
+        } else {
+          navigation.replace(ROUTES.AUTH as 'Auth');
+        }
+      });
+    }, 3000);
 
     return () => {
+      floatLoop.stop();
+      glowLoop.stop();
+      shineLoop.stop();
+      shimmerLoop.stop();
       clearInterval(textInterval);
-      clearTimeout(navTimeout);
+      clearTimeout(navTimer);
     };
-  }, [navigation, isLoggedIn, checkAuth]);
+  }, [navigation, isLoggedIn, checkAuth, shineDistance]);
 
-  const spinInterpolate = ringRotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
+  const shineScaleY = shineTranslateAnim.interpolate({
+    inputRange: [
+      -shineDistance,
+      -shineDistance * 0.48,
+      0,
+      shineDistance * 0.48,
+      shineDistance,
+    ],
+    outputRange: [0.08, 0.45, 1.15, 0.45, 0.08],
+    extrapolate: 'clamp',
   });
 
-  const shimmerTranslate = shimmerAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-100, SCREEN_WIDTH * 0.7],
+  const shineScaleX = shineTranslateAnim.interpolate({
+    inputRange: [
+      -shineDistance,
+      -shineDistance * 0.48,
+      0,
+      shineDistance * 0.48,
+      shineDistance,
+    ],
+    outputRange: [0.35, 0.7, 1.1, 0.7, 0.35],
+    extrapolate: 'clamp',
+  });
+
+  const shineOpacity = shineTranslateAnim.interpolate({
+    inputRange: [
+      -shineDistance,
+      -shineDistance * 0.55,
+      0,
+      shineDistance * 0.55,
+      shineDistance,
+    ],
+    outputRange: [0, 0.75, 1, 0.75, 0],
+    extrapolate: 'clamp',
   });
 
   const progressWidth = progressAnim.interpolate({
@@ -212,261 +340,192 @@ const SplashScreen: React.FC = () => {
   });
 
   return (
-    <View style={styles.container}>
+    <Animated.View style={[styles.container, { opacity: exitFadeAnim }]}>
       <StatusBar barStyle="light-content" />
 
-      {/* ─── Background Cinematic Dark Gold Atmosphere ─── */}
+      {/* ─── Luxury Emerald Casino Gradient Background ─── */}
       <LinearGradient
-        colors={['#170D03', '#0D0702', '#060301', '#000000']}
+        colors={['#062F1E', '#032014', '#02160E', '#000C07']}
         locations={[0, 0.35, 0.7, 1]}
         style={StyleSheet.absoluteFill}
       />
 
-      {/* Top Warm Spotlight Cone */}
+      {/* Top Warm Spotlight Radial Cone */}
       <LinearGradient
-        colors={['rgba(22, 100, 56, 0.22)', 'rgba(255, 166, 0, 0.08)', 'transparent']}
+        colors={['rgba(212, 168, 48, 0.28)', 'rgba(30, 130, 76, 0.15)', 'transparent']}
         style={styles.topSpotlight}
       />
 
-      {/* Ambient Floating Poker Suits (Spade, Club, Diamond, Heart) */}
-      <Text style={[styles.ambientSuit, { top: SCREEN_HEIGHT * 0.1, right: SCREEN_WIDTH * 0.18, fontSize: 38, transform: [{ rotate: '12deg' }] }]}>
-        ♠
-      </Text>
-      <Text style={[styles.ambientSuit, { top: SCREEN_HEIGHT * 0.22, left: SCREEN_WIDTH * 0.1, fontSize: 32, transform: [{ rotate: '-15deg' }] }]}>
-        ♣
-      </Text>
-      <Text style={[styles.ambientSuit, { top: SCREEN_HEIGHT * 0.38, left: SCREEN_WIDTH * 0.06, fontSize: 28, transform: [{ rotate: '25deg' }] }]}>
-        ♦
-      </Text>
-      <Text style={[styles.ambientSuit, { top: SCREEN_HEIGHT * 0.37, right: SCREEN_WIDTH * 0.08, fontSize: 30, transform: [{ rotate: '-10deg' }] }]}>
-        ♥
-      </Text>
+      {/* Ambient Poker Suits & Casino Accents */}
+      <AmbientSuit symbol="♠" top={SCREEN_HEIGHT * 0.1} right={SCREEN_WIDTH * 0.14} size={34} rotate="15deg" opacity={0.22} />
+      <AmbientSuit symbol="♣" top={SCREEN_HEIGHT * 0.23} left={SCREEN_WIDTH * 0.08} size={28} rotate="-18deg" opacity={0.18} />
+      <AmbientSuit symbol="♦" top={SCREEN_HEIGHT * 0.42} left={SCREEN_WIDTH * 0.07} size={26} rotate="22deg" opacity={0.25} />
+      <AmbientSuit symbol="♥" top={SCREEN_HEIGHT * 0.39} right={SCREEN_WIDTH * 0.09} size={28} rotate="-12deg" opacity={0.22} />
+      <AmbientSuit symbol="♠" top={SCREEN_HEIGHT * 0.65} left={SCREEN_WIDTH * 0.12} size={30} rotate="8deg" opacity={0.16} />
+      <AmbientSuit symbol="♦" top={SCREEN_HEIGHT * 0.68} right={SCREEN_WIDTH * 0.11} size={26} rotate="-16deg" opacity={0.2} />
 
-      {/* Floating 3D Gold Stars */}
-      <Gold3DStar size={24} style={{ position: 'absolute', top: SCREEN_HEIGHT * 0.3, left: SCREEN_WIDTH * 0.12 }} />
-      <Gold3DStar size={20} style={{ position: 'absolute', top: SCREEN_HEIGHT * 0.46, right: SCREEN_WIDTH * 0.13 }} />
-      <Gold3DStar size={16} style={{ position: 'absolute', top: SCREEN_HEIGHT * 0.18, right: SCREEN_WIDTH * 0.38 }} />
+      {/* Floating Golden Twinkling Stars */}
+      <FloatingStar size={26} top={SCREEN_HEIGHT * 0.14} left={SCREEN_WIDTH * 0.16} delay={0} />
+      <FloatingStar size={20} top={SCREEN_HEIGHT * 0.28} right={SCREEN_WIDTH * 0.12} delay={500} />
+      <FloatingStar size={18} top={SCREEN_HEIGHT * 0.46} left={SCREEN_WIDTH * 0.11} delay={900} />
+      <FloatingStar size={24} top={SCREEN_HEIGHT * 0.18} right={SCREEN_WIDTH * 0.3} delay={300} />
+      <FloatingStar size={20} top={SCREEN_HEIGHT * 0.52} right={SCREEN_WIDTH * 0.16} delay={700} />
 
-      {/* Ambient Small Floating Background Dice */}
-      <MiniBgDice
-        size={46}
-        style={{ position: 'absolute', top: SCREEN_HEIGHT * 0.11, left: SCREEN_WIDTH * 0.16 }}
-        rotateDeg="25deg"
-        opacity={0.82}
-      />
-      <MiniBgDice
-        size={38}
-        style={{ position: 'absolute', top: SCREEN_HEIGHT * 0.24, right: SCREEN_WIDTH * 0.12 }}
-        rotateDeg="-30deg"
-        opacity={0.7}
-      />
-      <MiniBgDice
-        size={42}
-        style={{ position: 'absolute', top: SCREEN_HEIGHT * 0.42, left: SCREEN_WIDTH * 0.08 }}
-        rotateDeg="18deg"
-        opacity={0.78}
-      />
-
-      {/* Bottom Floor Golden Glow Reflection */}
+      {/* Bottom Golden Warm Floor Reflection */}
       <LinearGradient
-        colors={['transparent', 'rgba(255, 179, 0, 0.08)', 'rgba(255, 150, 0, 0.15)', 'transparent']}
+        colors={['transparent', 'rgba(212, 168, 48, 0.06)', 'rgba(255, 179, 0, 0.16)', 'transparent']}
         style={styles.floorGlow}
       />
 
-      {/* ─── Main Interactive Content ─── */}
-      <Animated.View
-        style={[
-          styles.mainContent,
-          {
-            opacity: contentFadeAnim,
-            transform: [{ scale: contentScaleAnim }],
-          },
-        ]}
-      >
-        {/* ─── Center Hero Dice Section ─── */}
-        <View style={styles.heroSection}>
-          {/* Pulsing Golden Aura Halo */}
+      {/* ─── Main Content Container ─── */}
+      <View style={styles.contentContainer}>
+        {/* ─── Centerpiece Hero Area ─── */}
+        <View style={styles.heroWrapper}>
+          {/* Pulsing Golden Aura Radial Glow */}
           <Animated.View
             style={[
-              styles.goldAuraHalo,
+              styles.auraHalo,
               {
-                transform: [{ scale: pulseAuraAnim }],
+                transform: [{ scale: glowPulseAnim }],
               },
             ]}
           >
             <LinearGradient
-              colors={['rgba(255, 215, 0, 0.45)', 'rgba(255, 140, 0, 0.2)', 'transparent']}
+              colors={['rgba(255, 215, 0, 0.55)', 'rgba(255, 165, 0, 0.22)', 'transparent']}
               style={styles.auraGradient}
             />
           </Animated.View>
 
           {/* Lottie Swirling Golden Energy Vortex */}
-          <View style={styles.lottieWrapper} pointerEvents="none">
+          <View style={styles.lottieContainer} pointerEvents="none">
             <LottieView
               source={LOTTIE_ANIMATIONS.splashGoldenVortex}
               autoPlay
               loop
-              style={styles.lottieView}
+              style={styles.lottieAnimation}
             />
           </View>
 
-          {/* Animated Floating 3D Dice */}
+          {/* Animated Hero Logo with Chess Knight, Dice, Ludo, Uno & 3D Title */}
           <Animated.View
             style={[
-              styles.heroDiceContainer,
+              styles.heroLogoContainer,
               {
-                transform: [{ translateY: floatAnim }, { rotate: '-12deg' }],
+                width: heroSize,
+                height: heroSize,
+                opacity: logoFadeAnim,
+                transform: [
+                  { scale: logoScaleAnim },
+                  { translateY: floatAnim },
+                ],
               },
             ]}
           >
-            {/* 3D Dice Perspective Box */}
-            <View style={styles.dice3D}>
-              <LinearGradient
-                colors={['#FFFFFF', '#F8FAFC', '#E2E8F0', '#CBD5E1']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.diceFace}
+            {/* The Main High-Res Transparent GameLivo Artwork */}
+            <Image
+              source={IMAGES.logoWithoutBg}
+              style={styles.heroLogoImage}
+              resizeMode="contain"
+            />
+
+            {/* Radiant Specular Glint Sweep Beam */}
+            <View style={styles.glintClipWrapper} pointerEvents="none">
+              <Animated.View
+                style={[
+                  styles.glintBeam,
+                  {
+                    opacity: shineOpacity,
+                    transform: [
+                      { translateX: shineTranslateAnim },
+                      { rotate: '28deg' },
+                      { scaleY: shineScaleY },
+                      { scaleX: shineScaleX },
+                    ],
+                  },
+                ]}
               >
-                {/* Dice Specular Highlight Reflection */}
                 <LinearGradient
-                  colors={['rgba(255, 255, 255, 0.9)', 'rgba(255, 255, 255, 0.2)', 'transparent']}
-                  style={styles.diceGlint}
+                  colors={[
+                    'transparent',
+                    'rgba(255, 215, 0, 0.03)',
+                    'rgba(255, 235, 120, 0.10)',
+                    'rgba(255, 255, 255, 0.22)',
+                    'rgba(255, 220, 90, 0.10)',
+                    'rgba(255, 180, 0, 0.03)',
+                    'transparent',
+                  ]}
+                  locations={[0, 0.18, 0.38, 0.5, 0.62, 0.82, 1]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.glintGradient}
                 />
-
-                {/* 5 Pips Configuration on Main Face with Golden Glowing Rim */}
-                <View style={styles.pipRow}>
-                  <View style={styles.heroPip} />
-                  <View style={styles.heroPip} />
-                </View>
-                <View style={styles.heroPipCenter} />
-                <View style={styles.pipRow}>
-                  <View style={styles.heroPip} />
-                  <View style={styles.heroPip} />
-                </View>
-              </LinearGradient>
-
-              {/* Dice 3D Bottom/Right Shadow Edge */}
-              <LinearGradient
-                colors={['rgba(0,0,0,0.6)', 'rgba(20,10,0,0.9)']}
-                style={styles.dice3DBevel}
-              />
+              </Animated.View>
             </View>
           </Animated.View>
-
-          {/* Foreground Golden Swirling Orbit Trail Ring */}
-          <Animated.View
-            style={[
-              styles.foregroundOrbitRing,
-              {
-                transform: [{ rotate: spinInterpolate }, { scaleX: 1.6 }, { scaleY: 0.65 }],
-              },
-            ]}
-          />
         </View>
 
-        {/* ─── Golden Crown & GameLivo Logo ─── */}
-        <View style={styles.brandContainer}>
-          {/* Royal 5-Point Crown */}
-          <View style={styles.crownContainer}>
+        {/* ─── Bottom Section: Tagline & Progress Bar ─── */}
+        <Animated.View
+          style={[
+            styles.bottomSection,
+            {
+              opacity: bottomFadeAnim,
+            },
+          ]}
+        >
+          {/* Golden Gaming Platform Badge */}
+          <View style={styles.taglinePillBadge}>
             <LinearGradient
-              colors={['#FFF3A8', '#FFD700', '#FFA500', '#CC8400']}
+              colors={['rgba(255, 215, 0, 0.18)', 'rgba(30, 80, 50, 0.45)']}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={styles.crownPeakLeft}
-            />
-            <LinearGradient
-              colors={['#FFF3A8', '#FFD700', '#FFA500', '#CC8400']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.crownPeakCenter}
-            />
-            <LinearGradient
-              colors={['#FFF3A8', '#FFD700', '#FFA500', '#CC8400']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.crownPeakRight}
-            />
-            {/* Crown Base */}
-            <View style={styles.crownBase} />
-            {/* Crown Gem dots */}
-            <View style={[styles.crownGem, { left: 1 }]} />
-            <View style={[styles.crownGem, { left: 14 }]} />
-            <View style={[styles.crownGem, { left: 27 }]} />
+              style={styles.taglinePillGradient}
+            >
+              <Text style={styles.taglinePillText}>LUDO • CHESS • UNO • CARDS</Text>
+            </LinearGradient>
           </View>
 
-          {/* 3D Embossed "GameLivo" Logo */}
-          <View style={styles.logoRow}>
-            {/* "Game" in Silver/Chrome 3D Metallic */}
-            <Text style={styles.logoGameText}>Game</Text>
+          {/* Subtitle Play • Connect • Win */}
+          <Text style={styles.subtitleMotto}>PLAY • CONNECT • WIN</Text>
 
-            {/* "Livo" in Radiant Glowing Gold */}
-            <Text style={styles.logoLivoText}>Liv</Text>
-
-            {/* Controller Icon inside the 'o' */}
-            <View style={styles.controllerLetterO}>
-              <Text style={styles.controllerLetterText}>o</Text>
-              <View style={styles.controllerBadge}>
-                <Text style={styles.controllerIconSymbol}>🎮</Text>
-              </View>
+          {/* Luxury Capsule Loading Bar */}
+          <View style={styles.loadingBarContainer}>
+            <View style={styles.loadingBarTrack}>
+              <Animated.View style={[styles.loadingBarFill, { width: progressWidth }]}>
+                <LinearGradient
+                  colors={['#FFF176', '#FFB300', '#FF8F00', '#E65100']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.loadingBarGradient}
+                >
+                  {/* Laser Scanline Shimmer */}
+                  <Animated.View
+                    style={[
+                      styles.shimmerBeam,
+                      {
+                        transform: [{ translateX: shimmerTranslateAnim }],
+                      },
+                    ]}
+                  >
+                    <LinearGradient
+                      colors={['transparent', 'rgba(255, 255, 255, 0.85)', 'transparent']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.shimmerGradient}
+                    />
+                  </Animated.View>
+                </LinearGradient>
+              </Animated.View>
             </View>
           </View>
 
-          {/* Golden Curved Baseline Bar */}
-          <View style={styles.goldenBaselineWrapper}>
-            <LinearGradient
-              colors={['transparent', '#FFD700', '#FFF3A8', '#FFD700', 'transparent']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.goldenBaseline}
-            />
-          </View>
-
-          {/* Tagline: PLAY • CONNECT • WIN */}
-          <View style={styles.taglineRow}>
-            <Text style={styles.taglineWord}>PLAY</Text>
-            <Text style={styles.taglineDot}>•</Text>
-            <Text style={styles.taglineWord}>CONNECT</Text>
-            <Text style={styles.taglineDot}>•</Text>
-            <Text style={styles.taglineWord}>WIN</Text>
-          </View>
-        </View>
-
-        {/* ─── Bottom Loading Progress Bar & Status ─── */}
-        <View style={styles.loadingContainer}>
-          {/* Progress Capsule Bar */}
-          <View style={styles.progressBarWrapper}>
-            <Animated.View style={[styles.progressBarFill, { width: progressWidth }]}>
-              <LinearGradient
-                colors={['#FFE259', '#FFA751', '#FF8008']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.progressGradient}
-              >
-                {/* Glowing Laser Scanline Shimmer */}
-                <Animated.View
-                  style={[
-                    styles.shimmerBeam,
-                    {
-                      transform: [{ translateX: shimmerTranslate }],
-                    },
-                  ]}
-                >
-                  <LinearGradient
-                    colors={['transparent', 'rgba(255, 255, 255, 0.8)', 'transparent']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.shimmerGradient}
-                  />
-                </Animated.View>
-              </LinearGradient>
-            </Animated.View>
-          </View>
-
-          {/* Dynamic Loading Subtitle */}
-          <Text style={styles.loadingStatusText}>{loadingMessages[loadingTextIndex]}</Text>
-        </View>
-      </Animated.View>
-    </View>
+          {/* Dynamic Loading Status Text */}
+          <Text style={styles.loadingStatusText}>
+            {loadingMessages[loadingTextIndex]}
+          </Text>
+        </Animated.View>
+      </View>
+    </Animated.View>
   );
 };
 
@@ -474,328 +533,176 @@ const SplashScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: '#02150D',
     alignItems: 'center',
     justifyContent: 'center',
   },
   topSpotlight: {
     position: 'absolute',
     top: 0,
-    // left: SCREEN_WIDTH * 0.1,
-    // right: SCREEN_WIDTH * 0.1,
+    left: 0,
+    right: 0,
     height: SCREEN_HEIGHT * 0.55,
-    borderBottomLeftRadius: SCREEN_WIDTH * 0.4,
-    borderBottomRightRadius: SCREEN_WIDTH * 0.4,
-    width: '100%'
+    borderBottomLeftRadius: SCREEN_WIDTH * 0.5,
+    borderBottomRightRadius: SCREEN_WIDTH * 0.5,
   },
-  ambientSuit: {
+  ambientSuitText: {
     position: 'absolute',
-    color: '#8A6828',
-    opacity: 0.35,
-    textShadowColor: 'rgba(255, 215, 0, 0.25)',
-    textShadowRadius: 6,
+    color: '#E5B842',
+    textShadowColor: 'rgba(255, 215, 0, 0.4)',
+    textShadowRadius: 8,
     textShadowOffset: { width: 0, height: 0 },
   },
-  miniDiceContainer: {
-    backgroundColor: '#FFFFFF',
-    overflow: 'hidden',
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 215, 0, 0.5)',
-    shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  miniDiceGradient: {
-    flex: 1,
-    padding: 3,
-    justifyContent: 'space-between',
-  },
-  miniDicePipRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  miniPip: {
-    backgroundColor: '#1E293B',
-    borderRadius: 99,
+  starParticle: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   floorGlow: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: SCREEN_HEIGHT * 0.28,
+    height: SCREEN_HEIGHT * 0.3,
   },
-  mainContent: {
+  contentContainer: {
     flex: 1,
     width: '100%',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: SCREEN_HEIGHT * 0.12,
-    paddingBottom: SCREEN_HEIGHT * 0.08,
+    paddingTop: SCREEN_HEIGHT * 0.1,
+    paddingBottom: SCREEN_HEIGHT * 0.07,
   },
-  heroSection: {
-    width: SCREEN_WIDTH * 0.85,
-    height: SCREEN_WIDTH * 0.85,
+  heroWrapper: {
+    flex: 1,
+    width: '100%',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  goldAuraHalo: {
+  auraHalo: {
     position: 'absolute',
-    width: SCREEN_WIDTH * 0.75,
-    height: SCREEN_WIDTH * 0.75,
-    borderRadius: SCREEN_WIDTH * 0.375,
+    width: SCREEN_WIDTH * 0.85,
+    height: SCREEN_WIDTH * 0.85,
+    borderRadius: (SCREEN_WIDTH * 0.85) / 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
   auraGradient: {
     width: '100%',
     height: '100%',
-    borderRadius: SCREEN_WIDTH * 0.375,
+    borderRadius: (SCREEN_WIDTH * 0.85) / 2,
   },
-  lottieWrapper: {
+  lottieContainer: {
     position: 'absolute',
-    width: SCREEN_WIDTH * 0.9,
-    height: SCREEN_WIDTH * 0.9,
+    width: SCREEN_WIDTH * 0.95,
+    height: SCREEN_WIDTH * 0.95,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2,
   },
-  lottieView: {
+  lottieAnimation: {
     width: '100%',
     height: '100%',
   },
-  heroDiceContainer: {
+  heroLogoContainer: {
     zIndex: 10,
-    shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.65,
-    shadowRadius: 20,
-    elevation: 15,
-  },
-  dice3D: {
-    width: SCREEN_WIDTH * 0.44,
-    height: SCREEN_WIDTH * 0.44,
-    borderRadius: SCREEN_WIDTH * 0.09,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#FFF3A8',
-    overflow: 'hidden',
-  },
-  diceFace: {
-    flex: 1,
-    padding: SCREEN_WIDTH * 0.045,
-    justifyContent: 'space-between',
     alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.7,
+    shadowRadius: 24,
+    elevation: 20,
   },
-  diceGlint: {
+  heroLogoImage: {
+    width: '100%',
+    height: '100%',
+  },
+  glintClipWrapper: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    height: '40%',
-    borderTopLeftRadius: SCREEN_WIDTH * 0.08,
-    borderTopRightRadius: SCREEN_WIDTH * 0.08,
-  },
-  pipRow: {
-    width: '100%',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  heroPip: {
-    width: SCREEN_WIDTH * 0.075,
-    height: SCREEN_WIDTH * 0.075,
-    borderRadius: SCREEN_WIDTH * 0.038,
-    backgroundColor: '#0F172A',
-    borderWidth: 1.5,
-    borderColor: '#D4AF37',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.8,
-    shadowRadius: 3,
-  },
-  heroPipCenter: {
-    width: SCREEN_WIDTH * 0.075,
-    height: SCREEN_WIDTH * 0.075,
-    borderRadius: SCREEN_WIDTH * 0.038,
-    backgroundColor: '#0F172A',
-    borderWidth: 1.5,
-    borderColor: '#D4AF37',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.8,
-    shadowRadius: 3,
-  },
-  dice3DBevel: {
-    position: 'absolute',
     bottom: 0,
-    right: 0,
-    width: '100%',
-    height: 10,
+    overflow: 'hidden',
+    borderRadius: 24,
   },
-  foregroundOrbitRing: {
+  glintBeam: {
     position: 'absolute',
-    width: SCREEN_WIDTH * 0.65,
-    height: SCREEN_WIDTH * 0.65,
-    borderRadius: SCREEN_WIDTH * 0.325,
-    borderWidth: 3,
-    borderColor: '#FFDF00',
-    borderStyle: 'dashed',
-    zIndex: 12,
-    shadowColor: '#FFD700',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 10,
-  },
-  brandContainer: {
-    alignItems: 'center',
-    marginTop: -SCREEN_HEIGHT * 0.02,
-  },
-  crownContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    marginBottom: 4,
-    height: 24,
-    width: 36,
-  },
-  crownPeakLeft: {
-    width: 8,
-    height: 16,
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 2,
-    transform: [{ rotate: '-20deg' }],
-  },
-  crownPeakCenter: {
-    width: 10,
-    height: 22,
-    borderTopLeftRadius: 5,
-    borderTopRightRadius: 5,
-    marginHorizontal: 1,
-  },
-  crownPeakRight: {
-    width: 8,
-    height: 16,
-    borderTopLeftRadius: 2,
-    borderTopRightRadius: 4,
-    transform: [{ rotate: '20deg' }],
-  },
-  crownBase: {
-    position: 'absolute',
+    top: 0,
     bottom: 0,
-    width: 34,
-    height: 4,
-    backgroundColor: '#FFD700',
-    borderRadius: 2,
+    width: 85,
+    alignSelf: 'center',
   },
-  crownGem: {
-    position: 'absolute',
-    bottom: 1,
-    width: 3,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: '#FFFFFF',
-  },
-  logoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoGameText: {
-    fontSize: 44,
-    fontWeight: '900',
-    color: '#F1F5F9',
-    letterSpacing: 0.5,
-    textShadowColor: 'rgba(0, 0, 0, 0.9)',
-    textShadowOffset: { width: 2, height: 3 },
-    textShadowRadius: 6,
-  },
-  logoLivoText: {
-    fontSize: 44,
-    fontWeight: '900',
-    color: '#FFB800',
-    letterSpacing: 0.5,
-    textShadowColor: 'rgba(255, 140, 0, 0.6)',
-    textShadowOffset: { width: 2, height: 3 },
-    textShadowRadius: 8,
-  },
-  controllerLetterO: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: -2,
-  },
-  controllerLetterText: {
-    fontSize: 44,
-    fontWeight: '900',
-    color: '#FFB800',
-    textShadowColor: 'rgba(255, 140, 0, 0.6)',
-    textShadowOffset: { width: 2, height: 3 },
-    textShadowRadius: 8,
-  },
-  controllerBadge: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  controllerIconSymbol: {
-    fontSize: 14,
-    color: '#000000',
-    marginTop: 2,
-  },
-  goldenBaselineWrapper: {
-    width: SCREEN_WIDTH * 0.7,
-    height: 2,
-    marginTop: 4,
-    marginBottom: 8,
-  },
-  goldenBaseline: {
+  glintGradient: {
     flex: 1,
-    borderRadius: 1,
+    width: '100%',
   },
-  taglineRow: {
-    flexDirection: 'row',
+  bottomSection: {
+    width: '100%',
     alignItems: 'center',
-    justifyContent: 'center',
+    paddingHorizontal: SCREEN_WIDTH * 0.1,
   },
-  taglineWord: {
-    fontSize: 13,
+  taglinePillBadge: {
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.45)',
+    overflow: 'hidden',
+    marginBottom: 8,
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  taglinePillGradient: {
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+  },
+  taglinePillText: {
+    color: '#FFF2A8',
+    fontSize: 11.5,
     fontWeight: '800',
+    letterSpacing: 2,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.6)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  subtitleMotto: {
+    fontSize: 13,
+    fontWeight: '900',
     color: '#FFD700',
-    letterSpacing: 3,
+    letterSpacing: 3.5,
+    marginBottom: 20,
     textShadowColor: 'rgba(255, 215, 0, 0.5)',
-    textShadowRadius: 4,
+    textShadowRadius: 6,
     textShadowOffset: { width: 0, height: 0 },
   },
-  taglineDot: {
-    fontSize: 12,
-    color: '#FFA500',
-    marginHorizontal: 10,
-  },
-  loadingContainer: {
+  loadingBarContainer: {
     width: '100%',
-    alignItems: 'center',
-    paddingHorizontal: SCREEN_WIDTH * 0.12,
+    paddingHorizontal: 10,
   },
-  progressBarWrapper: {
+  loadingBarTrack: {
     width: '100%',
-    height: 7,
-    backgroundColor: 'rgba(40, 25, 5, 0.8)',
+    height: 8,
+    backgroundColor: 'rgba(3, 30, 18, 0.85)',
     borderRadius: 99,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 215, 0, 0.4)',
+    borderWidth: 1.2,
+    borderColor: 'rgba(255, 215, 0, 0.45)',
     overflow: 'hidden',
     shadowColor: '#FFD700',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5,
-    shadowRadius: 6,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  progressBarFill: {
+  loadingBarFill: {
     height: '100%',
     borderRadius: 99,
     overflow: 'hidden',
   },
-  progressGradient: {
+  loadingBarGradient: {
     flex: 1,
     borderRadius: 99,
   },
@@ -808,13 +715,14 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   loadingStatusText: {
-    fontSize: 13,
-    color: '#E2E8F0',
-    fontWeight: '500',
+    fontSize: 12.5,
+    color: '#D1FAE5',
+    fontWeight: '600',
     marginTop: 12,
     letterSpacing: 0.5,
-    textShadowColor: 'rgba(0,0,0,0.8)',
-    textShadowRadius: 4,
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.9)',
+    textShadowRadius: 5,
     textShadowOffset: { width: 0, height: 1 },
   },
 });
