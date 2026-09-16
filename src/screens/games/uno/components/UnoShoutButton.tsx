@@ -4,6 +4,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   Animated,
+  View,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
 
@@ -19,14 +20,13 @@ export const UnoShoutButton: React.FC<UnoShoutButtonProps> = ({
   disabled = false,
 }) => {
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  const pulseAura = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     if (!hasCalledUno && !disabled) {
       const loop = Animated.loop(
         Animated.sequence([
           Animated.timing(scaleAnim, {
-            toValue: 1.1,
+            toValue: 1.06,
             duration: 600,
             useNativeDriver: true,
           }),
@@ -57,21 +57,23 @@ export const UnoShoutButton: React.FC<UnoShoutButtonProps> = ({
         activeOpacity={0.85}
         onPress={onPress}
         disabled={hasCalledUno || disabled}
-        style={[
-          styles.touchable,
-          hasCalledUno && styles.calledTouchable,
-        ]}
+        style={styles.touchable}
       >
         <LinearGradient
           colors={
             hasCalledUno
-              ? ['#2ECC71', '#1B8A4C']
-              : ['#FF4757', '#FF6B81', '#E74C3C']
+              ? ['#2ECC71', '#27AE60']
+              : ['#FF3B30', '#E02424', '#B91C1C']
           }
-          style={styles.gradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={styles.gradientPill}
         >
+          {/* Top subtle highlight reflection */}
+          <View style={styles.topGlossHighlight} />
+          
           <Text style={styles.unoText}>
-            {hasCalledUno ? '✓ UNO!' : 'UNO! 🔥'}
+            {hasCalledUno ? '✓ UNO!' : 'UNO!'}
           </Text>
         </LinearGradient>
       </TouchableOpacity>
@@ -83,38 +85,44 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#FF4757',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.7,
-    shadowRadius: 10,
+    shadowColor: '#FF3B30',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.6,
+    shadowRadius: 12,
     elevation: 8,
   },
   touchable: {
-    borderRadius: 24,
+    borderRadius: 28,
     overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
   },
-  calledTouchable: {
-    borderColor: '#2ECC71',
-    opacity: 0.9,
-  },
-  gradient: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+  gradientPill: {
+    paddingHorizontal: 38,
+    paddingVertical: 12,
+    borderRadius: 28,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 84,
+    minWidth: 140,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
+    position: 'relative',
+  },
+  topGlossHighlight: {
+    position: 'absolute',
+    top: 2,
+    left: '15%',
+    right: '15%',
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
+    borderRadius: 4,
   },
   unoText: {
-    fontSize: 14,
+    fontSize: 22,
     fontWeight: '900',
-    fontStyle: 'italic',
     color: '#FFFFFF',
-    letterSpacing: 1,
-    textShadowColor: 'rgba(0,0,0,0.4)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
+    letterSpacing: 1.2,
+    textShadowColor: 'rgba(0, 0, 0, 0.4)',
+    textShadowOffset: { width: 0, height: 1.5 },
+    textShadowRadius: 3,
   },
 });
 

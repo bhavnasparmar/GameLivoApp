@@ -264,9 +264,14 @@ const SplashScreen: React.FC = () => {
       setLoadingTextIndex((prev) => (prev + 1 < loadingMessages.length ? prev + 1 : prev));
     }, 700);
 
+    // Check session early in background during splash animations
+    const checkAuthPromise = checkAuth();
+
     // 8. Navigation transition on complete
     const navTimer = setTimeout(async () => {
       clearInterval(textInterval);
+
+      const isAuthValid = await checkAuthPromise;
 
       // Smooth exit fade
       Animated.timing(exitFadeAnim, {
@@ -274,15 +279,14 @@ const SplashScreen: React.FC = () => {
         duration: 400,
         easing: Easing.inOut(Easing.quad),
         useNativeDriver: true,
-      }).start(async () => {
-        const isAuthValid = await checkAuth();
+      }).start(() => {
         if (isAuthValid || isLoggedIn) {
           navigation.replace(ROUTES.MAIN as 'Main');
         } else {
           navigation.replace(ROUTES.AUTH as 'Auth');
         }
       });
-    }, 3200);
+    }, 3000);
 
     return () => {
       floatLoop.stop();

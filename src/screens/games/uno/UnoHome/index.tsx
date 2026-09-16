@@ -54,22 +54,12 @@ export const UnoHomeScreen: React.FC = () => {
     {
       id: 'computer',
       title: 'Play with Robot',
-      subtitle: '1v1 & 4P AI · Easy to Hard',
+      subtitle: '1v1 & 4P Table · Easy to Hard AI',
       glyph: '🤖',
       badge: 'INSTANT PLAY',
       gradient: ['#C0392B', '#781515'],
       borderColor: '#E74C3C',
       onPress: () => handleSelectMode('computer'),
-    },
-    {
-      id: 'local',
-      title: 'Pass & Play',
-      subtitle: '2–4 Players on 1 device',
-      glyph: '👥',
-      badge: 'OFFLINE',
-      gradient: ['#D35400', '#7E3000'],
-      borderColor: '#E67E22',
-      onPress: () => handleSelectMode('local'),
     },
     {
       id: 'random',
@@ -133,7 +123,7 @@ export const UnoHomeScreen: React.FC = () => {
         >
           <View style={styles.heroContent}>
             <View style={styles.heroBadge}>
-              <Text style={styles.heroBadgeText}>OFFICIAL RULES · 108 CARDS</Text>
+              <Text style={styles.heroBadgeText}>SPEED 3-CARD RULES · 108 DECK</Text>
             </View>
             <Text style={styles.heroTitle}>Master the Color & Action Cards</Text>
             <Text style={styles.heroSubtitle}>
@@ -165,33 +155,37 @@ export const UnoHomeScreen: React.FC = () => {
         </View>
 
         <View style={styles.tilesGrid}>
-          {modeTiles.map((tile) => (
-            <TouchableOpacity
-              key={tile.id}
-              activeOpacity={0.82}
-              style={[
-                styles.tileCard,
-                {
-                  borderColor: tile.borderColor,
-                },
-              ]}
-              onPress={tile.onPress}
-            >
-              <LinearGradient colors={tile.gradient} style={styles.tileGradient}>
-                <View style={styles.tileTopRow}>
-                  <Text style={styles.tileGlyph}>{tile.glyph}</Text>
-                  <View style={styles.tileBadgeWrap}>
-                    <Text style={styles.tileBadgeText}>{tile.badge}</Text>
+          {modeTiles.map((tile, index) => {
+            const isFullWidth = index === modeTiles.length - 1;
+            return (
+              <TouchableOpacity
+                key={tile.id}
+                activeOpacity={0.82}
+                style={[
+                  styles.tileCard,
+                  isFullWidth && styles.tileCardFull,
+                  {
+                    borderColor: tile.borderColor,
+                  },
+                ]}
+                onPress={tile.onPress}
+              >
+                <LinearGradient colors={tile.gradient} style={styles.tileGradient}>
+                  <View style={styles.tileTopRow}>
+                    <Text style={styles.tileGlyph}>{tile.glyph}</Text>
+                    <View style={styles.tileBadgeWrap}>
+                      <Text style={styles.tileBadgeText}>{tile.badge}</Text>
+                    </View>
                   </View>
-                </View>
 
-                <View style={styles.tileBottom}>
-                  <Text style={styles.tileTitle}>{tile.title}</Text>
-                  <Text style={styles.tileSub}>{tile.subtitle}</Text>
-                </View>
-              </LinearGradient>
-            </TouchableOpacity>
-          ))}
+                  <View style={styles.tileBottom}>
+                    <Text style={styles.tileTitle}>{tile.title}</Text>
+                    <Text style={styles.tileSub}>{tile.subtitle}</Text>
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            );
+          })}
         </View>
 
         {/* Guide & Rules Strip */}
@@ -360,6 +354,9 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     overflow: 'hidden',
     borderWidth: 1.5,
+  },
+  tileCardFull: {
+    width: '100%',
   },
   tileGradient: {
     padding: 14,

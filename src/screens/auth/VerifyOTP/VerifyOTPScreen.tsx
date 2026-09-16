@@ -46,7 +46,7 @@ export const VerifyOTPScreen: React.FC = () => {
   const navigation = useNavigation<VerifyOTPNavigationProp>();
   const route = useRoute<any>();
   const { isDark } = useTheme();
-  const { verifyRegistrationOtp } = useAuth();
+  const { verifyRegistrationOtp, verifyOTP } = useAuth();
 
   const { mobile, email, type } = route.params || {};
   const contact = mobile || email || '';
@@ -197,10 +197,19 @@ export const VerifyOTPScreen: React.FC = () => {
         });
       } else {
         // ── Login OTP ────────────────────────────────────────────────────
-        setVerifySuccess(true);
-        Animated.spring(successScale, { toValue: 1, tension: 50, friction: 7, useNativeDriver: true }).start();
-        await new Promise<void>(r => setTimeout(r, 900));
-        navigation.navigate(ROUTES.LOGIN as 'Login');
+        const result = await verifyOTP({ mobile: contact, otp: code, type: 'login' });
+        if (result.success || isDevBypass) {
+          setVerifySuccess(true);
+          Animated.spring(successScale, { toValue: 1, tension: 50, friction: 7, useNativeDriver: true }).start();
+          setTimeout(() => {
+            resetToMain();
+          }, 800);
+        } else {
+          triggerShake();
+          setOtp(Array(OTP_LENGTH).fill(''));
+          setActiveIndex(0);
+          setErrorMsg(result.error || 'Invalid OTP. Please try again.');
+        }
       }
     } catch (err: any) {
       // Dev bypass: even if API throws, 111111 still passes
