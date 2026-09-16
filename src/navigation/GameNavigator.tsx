@@ -9,6 +9,12 @@ import ChessLobbyScreen from '../screens/games/chess/ChessLobby';
 import ChessGameScreen from '../screens/games/chess/ChessGame';
 import ChessResultScreen from '../screens/games/chess/ChessResult';
 
+import UnoHomeScreen from '../screens/games/uno/UnoHome';
+import UnoModeScreen from '../screens/games/uno/UnoMode';
+import UnoLobbyScreen from '../screens/games/uno/UnoLobby';
+import UnoGameScreen from '../screens/games/uno/UnoGame';
+import UnoResultScreen from '../screens/games/uno/UnoResult';
+
 const Stack = createNativeStackNavigator<GameStackParamList>();
 
 export const GameNavigator: React.FC = () => {
@@ -25,6 +31,13 @@ export const GameNavigator: React.FC = () => {
       <Stack.Screen name="ChessLobby" component={ChessLobbyScreen} />
       <Stack.Screen name="ChessGame" component={ChessGameScreen} />
       <Stack.Screen name="ChessResult" component={ChessResultScreen} />
+
+      {/* Uno Screens */}
+      <Stack.Screen name="UnoHome" component={UnoHomeScreen} />
+      <Stack.Screen name="UnoMode" component={UnoModeScreen} />
+      <Stack.Screen name="UnoLobby" component={UnoLobbyScreen} />
+      <Stack.Screen name="UnoGame" component={UnoGameScreen} />
+      <Stack.Screen name="UnoResult" component={UnoResultScreen} />
 
       {/* Ludo */}
       <Stack.Screen name="LudoHome" component={LudoHomeScreen} />
