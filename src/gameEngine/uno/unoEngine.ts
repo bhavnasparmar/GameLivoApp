@@ -37,8 +37,8 @@ export interface UnoGameInitConfig {
 
 export class UnoEngineImpl {
   /**
-   * Initializes a brand new Uno match with standard 108 card deck, deals 7 cards
-   * to each player, and draws an initial valid top card.
+   * Initializes a brand new Uno match with standard 108 card deck, deals 3 cards
+   * to each player (Speed 3-Card Uno), and draws an initial valid top card.
    */
   getInitialState(config: UnoGameInitConfig): UnoGameState {
     let deck = shuffleDeck(buildStandardUnoDeck());
@@ -47,9 +47,9 @@ export class UnoEngineImpl {
     const timeSeconds = config.timeSeconds || UNO_DEFAULT_TIME_SECONDS;
     const matchId = config.matchId || `uno_${Date.now()}`;
 
-    // Deal 7 cards to each player
+    // Deal 3 cards to each player (Speed 3-Card Uno)
     const players: UnoPlayer[] = config.players.map((p) => {
-      const hand = deck.splice(0, 7);
+      const hand = deck.splice(0, 3);
       return {
         id: p.id,
         name: p.name,
@@ -138,7 +138,8 @@ export class UnoEngineImpl {
   }
 
   /**
-   * Reshuffles discard pile back into deck when draw pile runs low
+   * Reshuffles discard pile back into deck when draw pile runs low.
+   * If all cards are in hands, replenishes with fresh cards to prevent freezing.
    */
   reshuffleDeckIfNeeded(state: UnoGameState, minNeeded: number = 4): void {
     if (state.deck.length < minNeeded && state.discardPile.length > 1) {
@@ -146,6 +147,12 @@ export class UnoEngineImpl {
       const recycled = shuffleDeck(state.discardPile);
       state.deck.push(...recycled);
       state.discardPile = [top];
+    }
+
+    // Safeguard: If deck is still depleted, generate fresh shuffled cards
+    if (state.deck.length < minNeeded) {
+      const freshCards = shuffleDeck(buildStandardUnoDeck());
+      state.deck.push(...freshCards);
     }
   }
 

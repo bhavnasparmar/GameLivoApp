@@ -41,19 +41,35 @@ export const setupInterceptors = (instance: AxiosInstance): void => {
 
           if (!refreshToken) throw new Error('No refresh token');
 
-          const res = await instance.post<{ accessToken: string }>(
+          const res = await instance.post<any>(
             '/auth/refresh',
             { refreshToken },
           );
 
-          const newToken = res.data.accessToken;
+          const data = res?.data;
+          const newToken =
+            data?.accessToken ||
+            data?.token ||
+            data?.data?.accessToken ||
+            data?.data?.token ||
+            (typeof data === 'string' ? data : null);
+
+          if (!newToken) throw new Error('No new access token returned');
+
           await storageService.set(STORAGE_KEYS.ACCESS_TOKEN, newToken);
+          const newRefreshToken = data?.refreshToken || data?.data?.refreshToken;
+          if (newRefreshToken) {
+            await storageService.set(STORAGE_KEYS.REFRESH_TOKEN, newRefreshToken);
+          }
+
           originalRequest.headers.Authorization = `Bearer ${newToken}`;
           return instance(originalRequest);
         } catch {
-          // Clear tokens and let the auth slice handle logout
+          // Clear tokens and stored profile on definitive auth failure
           await storageService.remove(STORAGE_KEYS.ACCESS_TOKEN);
           await storageService.remove(STORAGE_KEYS.REFRESH_TOKEN);
+          await storageService.remove(STORAGE_KEYS.USER_ID);
+          await storageService.remove(STORAGE_KEYS.USER_PROFILE);
           return Promise.reject(error);
         }
       }

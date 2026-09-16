@@ -20,6 +20,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { ROUTES } from '../../../navigation/routes';
 import { AuthStackParamList } from '../../../navigation/types';
 import { resetToMain } from '../../../navigation/navigationRef';
+import AnimatedLogo from '../../../components/common/AnimatedLogo';
 import AppInput from '../../../components/inputs/AppInput';
 import PasswordInput from '../../../components/inputs/PasswordInput';
 import PrimaryButton from '../../../components/buttons/PrimaryButton';
@@ -39,25 +40,16 @@ export const LoginScreen: React.FC = () => {
   const [identifierError, setIdentifierError] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
 
-  // Subtle logo scale animation
-  const logoScale = useState(new Animated.Value(0.85))[0];
+  // Entrance fade animation for text content
   const fadeAnim = useState(new Animated.Value(0))[0];
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.spring(logoScale, {
-        toValue: 1,
-        tension: 50,
-        friction: 7,
-        useNativeDriver: true,
-      }),
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 500,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [logoScale, fadeAnim]);
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
+  }, [fadeAnim]);
 
   const validateForm = (): boolean => {
     let isValid = true;
@@ -137,22 +129,17 @@ export const LoginScreen: React.FC = () => {
           }
           style={[styles.headerGradient, { paddingTop: Math.max(insets.top + 16, 36) }]}
         >
-          {/* Subtle gold ambient glow element */}
-          <View style={styles.glowCircle} />
+          {/* Large background ambient glow circle */}
+          <View pointerEvents="none" style={styles.glowCircle} />
 
           <Animated.View
             style={[
               styles.headerContent,
-              { opacity: fadeAnim, transform: [{ scale: logoScale }] },
+              { opacity: fadeAnim },
             ]}
           >
-            {/* 3D Gold Logo Container */}
-            <LinearGradient
-              colors={['#F0C64A', '#D4A017', '#A6740C']}
-              style={styles.logoBadge}
-            >
-              <Text style={styles.logoIcon}>🎲</Text>
-            </LinearGradient>
+            {/* Animated GameLivo Logo with Size Transition */}
+            <AnimatedLogo size={105} />
 
             <Text style={styles.title}>Welcome Back</Text>
             <Text style={styles.subtitle}>
@@ -352,32 +339,14 @@ const styles = StyleSheet.create({
   },
   glowCircle: {
     position: 'absolute',
-    top: -40,
-    width: width * 0.9,
-    height: width * 0.9,
-    borderRadius: (width * 0.9) / 2,
-    backgroundColor: 'rgba(212, 160, 23, 0.08)',
+    top: 15,
+    width: width * 0.90,
+    height: width * 0.90,
+    borderRadius: (width * 0.90) / 2,
+    backgroundColor: 'rgba(212, 160, 23, 0.10)',
   },
   headerContent: {
     alignItems: 'center',
-  },
-  logoBadge: {
-    width: 62,
-    height: 62,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-    shadowColor: '#D4A017',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.45,
-    shadowRadius: 12,
-    elevation: 8,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-  },
-  logoIcon: {
-    fontSize: 28,
   },
   title: {
     fontSize: 24,

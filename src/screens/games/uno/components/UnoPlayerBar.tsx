@@ -1,101 +1,140 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
+  Modal,
 } from 'react-native';
 import LinearGradient from 'react-native-linear-gradient';
-import { UnoPlayer } from '../../../../gameEngine/uno/unoTypes';
 import UnoShoutButton from './UnoShoutButton';
 
 interface UnoPlayerBarProps {
-  player: UnoPlayer;
-  isMyTurn: boolean;
-  timeLeft: number;
-  maxTime?: number;
-  onShoutUno: () => void;
+  hasCalledUno: boolean;
   canShoutUno: boolean;
+  onShoutUno: () => void;
+  onSendReaction?: (emoji: string) => void;
+  onSendChat?: (message: string) => void;
 }
 
+const QUICK_REACTIONS = ['😂', '🔥', '😎', '😭', '👍', '👏', '😱', '🎉'];
+const QUICK_CHATS = [
+  'Good game! 🤝',
+  'Well played! 🔥',
+  'UNO! 🃏',
+  'Draw 4 incoming! 😈',
+  'Hurry up! ⏰',
+  'Nice move! 👏',
+];
+
 export const UnoPlayerBar: React.FC<UnoPlayerBarProps> = ({
-  player,
-  isMyTurn,
-  timeLeft,
-  maxTime = 15,
-  onShoutUno,
+  hasCalledUno,
   canShoutUno,
+  onShoutUno,
+  onSendReaction,
+  onSendChat,
 }) => {
-  const timeFraction = Math.max(0, Math.min(1, timeLeft / maxTime));
-  const isTimeCritical = timeLeft <= 5;
+  const [showEmojiModal, setShowEmojiModal] = useState(false);
+  const [showChatModal, setShowChatModal] = useState(false);
+
+  const handleSelectEmoji = (emoji: string) => {
+    setShowEmojiModal(false);
+    onSendReaction?.(emoji);
+  };
+
+  const handleSelectChat = (msg: string) => {
+    setShowChatModal(false);
+    onSendChat?.(msg);
+  };
 
   return (
     <View style={styles.container}>
-      {/* Left: Avatar & Name */}
-      <View style={styles.leftProfile}>
-        <View
-          style={[
-            styles.avatarGlowWrap,
-            isMyTurn && styles.myTurnGlow,
-          ]}
-        >
-          <LinearGradient
-            colors={isMyTurn ? ['#2ECC71', '#1B8A4C'] : ['#2C3E50', '#1A252F']}
-            style={styles.avatarCircle}
-          >
-            <Text style={styles.avatarEmoji}>{player.avatar || '👤'}</Text>
-          </LinearGradient>
-        </View>
+      {/* 1. Left Emoji Reaction Button */}
+      <TouchableOpacity
+        activeOpacity={0.75}
+        style={styles.circleActionBtn}
+        onPress={() => setShowEmojiModal(true)}
+      >
+        <Text style={styles.actionBtnEmoji}>😊</Text>
+      </TouchableOpacity>
 
-        <View style={styles.infoBlock}>
-          <View style={styles.nameRow}>
-            <Text style={styles.playerName} numberOfLines={1}>
-              {player.name}
-            </Text>
-            <View style={styles.youTag}>
-              <Text style={styles.youTagText}>YOU</Text>
-            </View>
-          </View>
-
-          {/* Turn timer status or card count */}
-          {isMyTurn ? (
-            <View style={styles.timerRow}>
-              <View style={styles.timerTrack}>
-                <View
-                  style={[
-                    styles.timerFill,
-                    {
-                      width: `${timeFraction * 100}%`,
-                      backgroundColor: isTimeCritical ? '#E74C3C' : '#2ECC71',
-                    },
-                  ]}
-                />
-              </View>
-              <Text
-                style={[
-                  styles.timerText,
-                  { color: isTimeCritical ? '#FF4D4D' : '#2ECC71' },
-                ]}
-              >
-                {timeLeft}s
-              </Text>
-            </View>
-          ) : (
-            <Text style={styles.waitingText}>Waiting for turn...</Text>
-          )}
-        </View>
+      {/* 2. Center UNO Giant Glossy Red Pill Button */}
+      <View style={styles.centerShoutWrap}>
+        <UnoShoutButton
+          onPress={onShoutUno}
+          hasCalledUno={hasCalledUno}
+          disabled={!canShoutUno && hasCalledUno}
+        />
       </View>
 
-      {/* Right: UNO Shout Button */}
-      {(canShoutUno || player.hand.length <= 2) && (
-        <View style={styles.rightAction}>
-          <UnoShoutButton
-            onPress={onShoutUno}
-            hasCalledUno={player.hasCalledUno}
-            disabled={!canShoutUno && player.hasCalledUno}
-          />
-        </View>
-      )}
+      {/* 3. Right Chat Button */}
+      <TouchableOpacity
+        activeOpacity={0.75}
+        style={styles.circleActionBtn}
+        onPress={() => setShowChatModal(true)}
+      >
+        <Text style={styles.actionBtnEmoji}>💬</Text>
+      </TouchableOpacity>
+
+      {/* Emoji Reaction Modal */}
+      <Modal
+        visible={showEmojiModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowEmojiModal(false)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.modalOverlay}
+          onPress={() => setShowEmojiModal(false)}
+        >
+          <View style={styles.popupCard}>
+            <Text style={styles.popupTitle}>Quick Reaction</Text>
+            <View style={styles.emojiGrid}>
+              {QUICK_REACTIONS.map((emoji) => (
+                <TouchableOpacity
+                  key={emoji}
+                  activeOpacity={0.7}
+                  style={styles.emojiTile}
+                  onPress={() => handleSelectEmoji(emoji)}
+                >
+                  <Text style={styles.emojiText}>{emoji}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Quick Chat Modal */}
+      <Modal
+        visible={showChatModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowChatModal(false)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={styles.modalOverlay}
+          onPress={() => setShowChatModal(false)}
+        >
+          <View style={styles.popupCard}>
+            <Text style={styles.popupTitle}>Quick Messages</Text>
+            <View style={styles.chatList}>
+              {QUICK_CHATS.map((msg) => (
+                <TouchableOpacity
+                  key={msg}
+                  activeOpacity={0.7}
+                  style={styles.chatTile}
+                  onPress={() => handleSelectChat(msg)}
+                >
+                  <Text style={styles.chatText}>{msg}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
@@ -105,95 +144,92 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(10, 18, 14, 0.95)',
-    borderTopWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 24,
+    paddingVertical: 10,
+    width: '100%',
   },
-  leftProfile: {
-    flexDirection: 'row',
+  circleActionBtn: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#1E272E',
     alignItems: 'center',
-    gap: 10,
-    flex: 1,
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 5,
+    elevation: 6,
   },
-  avatarGlowWrap: {
-    padding: 2,
-    borderRadius: 22,
+  actionBtnEmoji: {
+    fontSize: 22,
   },
-  myTurnGlow: {
-    backgroundColor: '#2ECC71',
-    shadowColor: '#2ECC71',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.9,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  avatarCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  centerShoutWrap: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarEmoji: {
-    fontSize: 20,
-  },
-  infoBlock: {
+  modalOverlay: {
     flex: 1,
-  },
-  nameRow: {
-    flexDirection: 'row',
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'flex-end',
+    paddingBottom: 90,
     alignItems: 'center',
-    gap: 6,
   },
-  playerName: {
+  popupCard: {
+    backgroundColor: '#1E272E',
+    borderRadius: 20,
+    padding: 16,
+    width: '90%',
+    maxWidth: 340,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.6,
+    shadowRadius: 10,
+    elevation: 10,
+  },
+  popupTitle: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#FFFFFF',
-    maxWidth: 130,
+    color: '#D2DAE2',
+    marginBottom: 12,
+    letterSpacing: 0.5,
   },
-  youTag: {
-    backgroundColor: 'rgba(46, 204, 113, 0.2)',
-    paddingHorizontal: 6,
-    paddingVertical: 1,
-    borderRadius: 6,
-  },
-  youTagText: {
-    fontSize: 9,
-    fontWeight: '900',
-    color: '#2ECC71',
-  },
-  timerRow: {
+  emojiGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    justifyContent: 'center',
+  },
+  emojiTile: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 4,
+    justifyContent: 'center',
   },
-  timerTrack: {
-    flex: 1,
-    maxWidth: 100,
-    height: 5,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: 3,
-    overflow: 'hidden',
+  emojiText: {
+    fontSize: 24,
   },
-  timerFill: {
-    height: '100%',
-    borderRadius: 3,
+  chatList: {
+    width: '100%',
+    gap: 8,
   },
-  timerText: {
-    fontSize: 11,
-    fontWeight: '800',
+  chatTile: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderRadius: 12,
   },
-  waitingText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#7A9182',
-    marginTop: 2,
-  },
-  rightAction: {
-    marginLeft: 10,
+  chatText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
 });
 

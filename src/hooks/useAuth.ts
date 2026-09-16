@@ -4,14 +4,16 @@ import { selectIsLoggedIn, selectAuthLoading, selectAuthError } from '../redux/s
 import { loginStart, loginSuccess, loginFailure, logout as logoutAction, clearError, stopLoading } from '../redux/slices/authSlice';
 import { fetchProfileSuccess, clearProfile } from '../redux/slices/userSlice';
 import { authService } from '../services/auth/authService';
-import { LoginRequest, RegisterRequest } from '../types/auth';
+import { userService } from '../services/user/userService';
+import { LoginRequest, RegisterRequest, OTPRequest } from '../types/auth';
 
 import { resetToAuth } from '../navigation/navigationRef';
 import { storageService } from '../services/storage/storageService';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 import apiClient from '../services/api/apiClient';
 import { API_ENDPOINTS } from '../services/api/apiEndpoints';
-import { User } from '../types/user';
+import { User, UserProfile } from '../types/user';
+import { isTokenExpired } from '../utils/tokenUtils';
 
 // ─── useAuth Hook ─────────────────────────────────────────────────────────────
 
@@ -26,24 +28,106 @@ export const useAuth = () => {
   }, [dispatch]);
 
   // ── Restore / Check Session on App Start ──────────────────────────────────
+  // Keeps the user logged in until their token truly expires or is invalidated
   const checkAuth = useCallback(async (): Promise<boolean> => {
     try {
       const token = await storageService.get<string>(STORAGE_KEYS.ACCESS_TOKEN);
-      if (!token) return false;
+      const refreshToken = await storageService.get<string>(STORAGE_KEYS.REFRESH_TOKEN);
+      const cachedProfile = await storageService.get<UserProfile>(STORAGE_KEYS.USER_PROFILE);
+      const cachedUserId = await storageService.get<string>(STORAGE_KEYS.USER_ID);
 
-      const userRes = await apiClient.get<User>(API_ENDPOINTS.USER.PROFILE);
-      if (userRes) {
-        dispatch(fetchProfileSuccess(userRes as any));
-        dispatch(
-          loginSuccess({
-            tokens: { accessToken: token, refreshToken: '', expiresAt: 0 },
-            userId: (userRes as any).id || 'user',
-          }),
-        );
-        return true;
+      // If neither access token nor refresh token is in storage, user is not logged in
+      if (!token && !refreshToken) {
+        return false;
       }
-      return false;
-    } catch {
+
+      let activeToken = token;
+      const expired = token ? isTokenExpired(token) : true;
+
+      // If access token is expired (or missing) but we have a refresh token, try refreshing
+      if (expired && refreshToken) {
+        try {
+          const res = await apiClient.post<any>(API_ENDPOINTS.AUTH.REFRESH_TOKEN, {
+            refreshToken,
+          });
+          const data = res?.data || res;
+          const newToken =
+            data?.accessToken ||
+            data?.token ||
+            data?.data?.accessToken ||
+            data?.data?.token;
+
+          if (newToken) {
+            activeToken = newToken;
+            await storageService.set(STORAGE_KEYS.ACCESS_TOKEN, newToken);
+            const newRefreshToken = data?.refreshToken || data?.data?.refreshToken;
+            if (newRefreshToken) {
+              await storageService.set(STORAGE_KEYS.REFRESH_TOKEN, newRefreshToken);
+            }
+          } else {
+            // Failed to refresh token
+            await authService.logout();
+            return false;
+          }
+        } catch (refreshErr: any) {
+          // If server explicitly returned 401/403, refresh token is dead
+          if (refreshErr?.response?.status === 401 || refreshErr?.response?.status === 403) {
+            await authService.logout();
+            return false;
+          }
+          // On network/connectivity issues, if token was not strictly expired, permit offline session
+          if (expired) {
+            return false;
+          }
+        }
+      } else if (expired && !refreshToken) {
+        // Token is expired and no refresh token available
+        await authService.logout();
+        return false;
+      }
+
+      if (!activeToken) return false;
+
+      // 1. Immediately hydrate Redux store with cached user & token so UI loads without waiting
+      const userId = cachedProfile?.id || cachedUserId || 'user';
+      if (cachedProfile) {
+        dispatch(fetchProfileSuccess(cachedProfile));
+      }
+      dispatch(
+        loginSuccess({
+          tokens: {
+            accessToken: activeToken,
+            refreshToken: refreshToken || '',
+            expiresAt: 0,
+          },
+          userId,
+        }),
+      );
+
+      // 2. Fetch fresh user profile in background (non-blocking for splash)
+      userService
+        .getProfile()
+        .then(async freshProfile => {
+          if (freshProfile && freshProfile.id) {
+            dispatch(fetchProfileSuccess(freshProfile));
+            await storageService.set(STORAGE_KEYS.USER_PROFILE, freshProfile);
+            await storageService.set(STORAGE_KEYS.USER_ID, freshProfile.id);
+          }
+        })
+        .catch(profileErr => {
+          // If profile endpoint returns 401, session is invalid on server
+          if (profileErr?.response?.status === 401) {
+            authService.logout().then(() => {
+              dispatch(logoutAction());
+              dispatch(clearProfile());
+              resetToAuth();
+            });
+          }
+        });
+
+      return true;
+    } catch (err) {
+      console.warn('Session restoration check failed:', err);
       return false;
     }
   }, [dispatch]);
@@ -187,6 +271,47 @@ export const useAuth = () => {
     [dispatch],
   );
 
+  // ── Verify General OTP ─────────────────────────────────────────────────────
+  const verifyOTP = useCallback(
+    async (
+      payload: OTPRequest,
+    ): Promise<{ success: boolean; message?: string; error?: string }> => {
+      dispatch(loginStart());
+      try {
+        const response = await authService.verifyOTP(payload);
+        if (response?.user) {
+          dispatch(fetchProfileSuccess(response.user as any));
+        }
+        if (response?.tokens) {
+          dispatch(
+            loginSuccess({
+              tokens: response.tokens,
+              userId: response.user?.id || 'unknown',
+            }),
+          );
+        } else {
+          dispatch(stopLoading());
+        }
+        return { success: true, message: response?.message };
+      } catch (err: any) {
+        let message = 'OTP verification failed. Please try again.';
+        if (err?.response?.data) {
+          const data = err.response.data;
+          if (typeof data.message === 'string' && data.message) {
+            message = data.message;
+          } else if (typeof data.error === 'string' && data.error) {
+            message = data.error;
+          }
+        } else if (err?.message) {
+          message = err.message;
+        }
+        dispatch(loginFailure(message));
+        return { success: false, error: message };
+      }
+    },
+    [dispatch],
+  );
+
   // ── Logout ─────────────────────────────────────────────────────────────────
   const logout = useCallback(async () => {
     await authService.logout();
@@ -195,5 +320,17 @@ export const useAuth = () => {
     resetToAuth();
   }, [dispatch]);
 
-  return { isLoggedIn, isLoading, error, login, register, verifyRegistrationOtp, forgotPassword, logout, resetError, checkAuth };
+  return {
+    isLoggedIn,
+    isLoading,
+    error,
+    login,
+    register,
+    verifyRegistrationOtp,
+    verifyOTP,
+    forgotPassword,
+    logout,
+    resetError,
+    checkAuth,
+  };
 };

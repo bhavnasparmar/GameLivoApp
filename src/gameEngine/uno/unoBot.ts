@@ -21,39 +21,39 @@ export class UnoBotAI {
     const difficulty = state.difficulty || 'medium';
 
     // Base delay with human-like randomness
-    let baseDelay = 1100;
-    if (difficulty === 'easy') baseDelay = 1400;
-    if (difficulty === 'hard') baseDelay = 800;
-    const jitter = Math.floor(Math.random() * 400);
+    let baseDelay = 1000;
+    if (difficulty === 'easy') baseDelay = 1200;
+    if (difficulty === 'hard') baseDelay = 700;
+    const jitter = Math.floor(Math.random() * 300);
     const delayMs = baseDelay + jitter;
 
-    // 1. Check if any opponent forgot to call UNO
+    // 1. Check if any opponent forgot to call UNO (free action, does not replace turn move)
+    let catchTargetId: string | undefined;
     const catchTarget = state.players.find(
       (p) => p.id !== botId && UnoRules.canCatchUno(p),
     );
     if (catchTarget) {
-      const catchProb = difficulty === 'hard' ? 0.95 : difficulty === 'medium' ? 0.7 : 0.35;
+      const catchProb = difficulty === 'hard' ? 0.95 : difficulty === 'medium' ? 0.75 : 0.45;
       if (Math.random() < catchProb) {
-        return {
-          move: { type: 'catch_uno', targetPlayerId: catchTarget.id },
-          delayMs: Math.max(500, delayMs - 300),
-          catchTargetId: catchTarget.id,
-        };
+        catchTargetId = catchTarget.id;
       }
     }
 
     // 2. Check if bot has 2 cards and should call UNO prior to / with its move
     let shouldShoutUno = false;
     if (bot.hand.length === 2 && !bot.hasCalledUno) {
-      const unoProb = difficulty === 'hard' ? 1.0 : difficulty === 'medium' ? 0.9 : 0.7;
+      const unoProb = difficulty === 'hard' ? 1.0 : difficulty === 'medium' ? 0.92 : 0.75;
       if (Math.random() < unoProb) {
         shouldShoutUno = true;
       }
     }
 
     // 3. If in Draw Phase (bot already drew a card):
-    if (state.isDrawPhase && state.drawnCardId) {
-      const drawnCard = bot.hand.find((c) => c.id === state.drawnCardId);
+    if (state.isDrawPhase) {
+      const drawnCard = state.drawnCardId
+        ? bot.hand.find((c) => c.id === state.drawnCardId)
+        : undefined;
+
       if (drawnCard && UnoRules.canPlayCard(state.topCard, state.activeColor, drawnCard)) {
         const chosenColor = UnoRules.isWildCard(drawnCard)
           ? this.chooseBestColor(bot.hand)
@@ -64,13 +64,15 @@ export class UnoBotAI {
             cardId: drawnCard.id,
             chosenColor,
           },
-          delayMs: 700,
+          delayMs: 650,
           shouldShoutUno,
+          catchTargetId,
         };
       }
       return {
         move: { type: 'pass_turn' },
         delayMs: 600,
+        catchTargetId,
       };
     }
 
@@ -86,6 +88,8 @@ export class UnoBotAI {
       return {
         move: { type: 'draw_card' },
         delayMs,
+        shouldShoutUno: false,
+        catchTargetId,
       };
     }
 
@@ -109,6 +113,7 @@ export class UnoBotAI {
       },
       delayMs,
       shouldShoutUno,
+      catchTargetId,
     };
   }
 

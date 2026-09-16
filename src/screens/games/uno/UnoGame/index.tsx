@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   StatusBar,
-  Alert,
   Dimensions,
   Modal,
 } from 'react-native';
@@ -27,21 +26,22 @@ import { unoEngine } from '../../../../gameEngine/uno/unoEngine';
 import { UnoRules } from '../../../../gameEngine/uno/unoRules';
 import { UnoBotAI } from '../../../../gameEngine/uno/unoBot';
 import {
-  UNO_COLOR_THEMES,
   UNO_DEFAULT_TIME_SECONDS,
   UNO_ROBOT_PROFILES,
 } from '../../../../gameEngine/uno/unoConstants';
 import { soundService } from '../../../../services/sound/soundService';
 import { vibrationService } from '../../../../services/vibration/vibrationService';
+import { socketService } from '../../../../services/socket/socketService';
+import { SOCKET_EVENTS } from '../../../../constants/socketConstants';
 import { useAppSelector } from '../../../../redux/hooks';
 
-import UnoCardView from '../components/UnoCardView';
 import UnoHandView from '../components/UnoHandView';
 import UnoOpponentHand from '../components/UnoOpponentHand';
 import UnoTableCenter from '../components/UnoTableCenter';
 import UnoColorPickerModal from '../components/UnoColorPickerModal';
 import UnoActionVFXOverlay from '../components/UnoActionVFXOverlay';
 import UnoPlayerBar from '../components/UnoPlayerBar';
+import UnoCardFlightOverlay, { CardFlightItem } from '../components/UnoCardFlightOverlay';
 
 const { width, height } = Dimensions.get('window');
 
@@ -54,41 +54,59 @@ export const UnoGameScreen: React.FC = () => {
   const userProfile = useAppSelector((state) => state.user.profile);
   const currentUserId = useAppSelector((state) => state.auth.userId) || 'player_me';
 
-  const matchId = route.params?.matchId || `uno_${Date.now()}`;
+  const matchId = route.params?.matchId || `UN0856`;
   const mode: UnoGameMode = route.params?.mode || 'computer';
   const difficulty: UnoDifficulty = route.params?.difficulty || 'medium';
-  const playerCount: 2 | 4 = route.params?.playerCount || 2;
+  const playerCount: number = route.params?.playerCount || 8;
   const initialTimeSeconds = route.params?.timeSeconds || UNO_DEFAULT_TIME_SECONDS;
 
-  const player1Name = route.params?.player1Name || userProfile?.name || userProfile?.username || 'Player 1';
-  const player2Name = route.params?.player2Name || 'Player 2';
+  const player1Name = route.params?.player1Name || userProfile?.name || userProfile?.username || 'You';
+  const customPlayers = route.params?.players;
+  const stake: number = route.params?.stake || 0;
+  const prizePool: number = route.params?.prizePool || 0;
+
+  // State for toggles & toasts
+  const [isSoundOn, setIsSoundOn] = useState<boolean>(true);
+  const [isMicOn, setIsMicOn] = useState<boolean>(false);
+  const [toastMsg, setToastMsg] = useState<string>('');
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(''), 2000);
+  };
 
   // Build Players Configuration
   const initialPlayers = React.useMemo(() => {
-    if (mode === 'computer') {
-      if (playerCount === 2) {
-        const bot = UNO_ROBOT_PROFILES.find((b) => b.difficulty === difficulty) || UNO_ROBOT_PROFILES[0];
-        return [
-          { id: currentUserId, name: player1Name, isBot: false, avatar: '😎', isHost: true },
-          { id: bot.id, name: bot.name, isBot: true, avatar: bot.avatar },
-        ];
-      } else {
-        // 4-Player Table: 1 Human + 3 Bots
-        return [
-          { id: currentUserId, name: player1Name, isBot: false, avatar: '😎', isHost: true },
-          { id: UNO_ROBOT_PROFILES[0].id, name: UNO_ROBOT_PROFILES[0].name, isBot: true, avatar: UNO_ROBOT_PROFILES[0].avatar },
-          { id: UNO_ROBOT_PROFILES[1].id, name: UNO_ROBOT_PROFILES[1].name, isBot: true, avatar: UNO_ROBOT_PROFILES[1].avatar },
-          { id: UNO_ROBOT_PROFILES[3].id, name: UNO_ROBOT_PROFILES[3].name, isBot: true, avatar: UNO_ROBOT_PROFILES[3].avatar },
-        ];
-      }
-    } else {
-      // Local Pass & Play
+    if (customPlayers && customPlayers.length > 0) {
+      return customPlayers;
+    }
+    if (playerCount === 2) {
+      const bot = UNO_ROBOT_PROFILES[0];
       return [
-        { id: 'p1', name: player1Name, isBot: false, avatar: '😎', isHost: true },
-        { id: 'p2', name: player2Name, isBot: false, avatar: '🤠' },
+        { id: currentUserId, name: player1Name, isBot: false, avatar: '👩🏻', isHost: true },
+        { id: bot.id, name: bot.name, isBot: true, avatar: bot.avatar },
+      ];
+    } else if (playerCount === 4) {
+      return [
+        { id: currentUserId, name: player1Name, isBot: false, avatar: '👩🏻', isHost: true },
+        { id: UNO_ROBOT_PROFILES[0].id, name: UNO_ROBOT_PROFILES[0].name, isBot: true, avatar: UNO_ROBOT_PROFILES[0].avatar },
+        { id: UNO_ROBOT_PROFILES[1].id, name: UNO_ROBOT_PROFILES[1].name, isBot: true, avatar: UNO_ROBOT_PROFILES[1].avatar },
+        { id: UNO_ROBOT_PROFILES[2].id, name: UNO_ROBOT_PROFILES[2].name, isBot: true, avatar: UNO_ROBOT_PROFILES[2].avatar },
+      ];
+    } else {
+      // 8-Player Full Table
+      const bots = UNO_ROBOT_PROFILES.slice(0, 7);
+      return [
+        { id: currentUserId, name: player1Name, isBot: false, avatar: '👩🏻', isHost: true },
+        ...bots.map((b) => ({
+          id: b.id,
+          name: b.name,
+          isBot: true,
+          avatar: b.avatar,
+        })),
       ];
     }
-  }, [mode, difficulty, playerCount, currentUserId, player1Name, player2Name]);
+  }, [playerCount, currentUserId, player1Name, customPlayers]);
 
   // Game Engine State
   const [gameState, setGameState] = useState<UnoGameState>(() =>
@@ -107,7 +125,28 @@ export const UnoGameScreen: React.FC = () => {
   const [actionVfxText, setActionVfxText] = useState<string>('');
   const [showActionVfx, setShowActionVfx] = useState<boolean>(false);
   const [isPauseModalOpen, setIsPauseModalOpen] = useState<boolean>(false);
-  const [botThinkingText, setBotThinkingText] = useState<string>('');
+  const [cardFlights, setCardFlights] = useState<CardFlightItem[]>([]);
+  const [opponentActions, setOpponentActions] = useState<Record<string, string>>({});
+
+  const triggerFlight = useCallback((flight: Omit<CardFlightItem, 'id'>) => {
+    const id = `fl_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+    setCardFlights((prev) => [...prev, { ...flight, id }]);
+  }, []);
+
+  const removeFlight = useCallback((id: string) => {
+    setCardFlights((prev) => prev.filter((f) => f.id !== id));
+  }, []);
+
+  const triggerOpponentActionMsg = useCallback((playerId: string, msg: string) => {
+    setOpponentActions((prev) => ({ ...prev, [playerId]: msg }));
+    setTimeout(() => {
+      setOpponentActions((prev) => {
+        const copy = { ...prev };
+        delete copy[playerId];
+        return copy;
+      });
+    }, 2200);
+  }, []);
 
   const gameStateRef = useRef<UnoGameState>(gameState);
   useEffect(() => {
@@ -116,7 +155,6 @@ export const UnoGameScreen: React.FC = () => {
 
   const myPlayer = gameState.players.find((p) => p.id === currentUserId) || gameState.players[0];
   const isMyTurn = gameState.currentPlayerId === myPlayer.id && !gameState.roundOver;
-  const is2Player = gameState.players.length === 2;
 
   // Trigger Action Banner VFX
   const triggerVfx = useCallback((text: string) => {
@@ -126,26 +164,67 @@ export const UnoGameScreen: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
-  // Turn Countdown Timer
+  // ─── Socket Synchronization for Online & Friends ─────────────────────────
   useEffect(() => {
-    if (gameState.roundOver) return;
+    if (mode === 'computer' || mode === 'local') return;
 
-    setTimeLeft(initialTimeSeconds);
-    const interval = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          // Timeout: If human player, automatically draw card
-          if (gameStateRef.current.currentPlayerId === myPlayer.id) {
-            handleDrawCard();
-          }
-          return initialTimeSeconds;
+    if (!socketService.isConnected()) {
+      socketService.connect();
+    }
+
+    socketService.emit(SOCKET_EVENTS.GAME_STATE, { matchId });
+    socketService.emit(SOCKET_EVENTS.PLAYER_JOIN, {
+      matchId,
+      userId: currentUserId,
+      username: player1Name,
+    });
+
+    const handleRemoteMove = (data: { move?: UnoMove; playerId?: string; gameState?: UnoGameState }) => {
+      if (data.gameState) {
+        setGameState(data.gameState);
+        gameStateRef.current = data.gameState;
+        if (isSoundOn) soundService.play('card_flip');
+      } else if (data.move && data.playerId && data.playerId !== currentUserId) {
+        const currentState = gameStateRef.current;
+        const res = unoEngine.applyMove(currentState, data.move, data.playerId);
+        if (res.isSuccess) {
+          gameStateRef.current = res.newState;
+          setGameState(res.newState);
+          if (isSoundOn) soundService.play('card_flip');
         }
-        return prev - 1;
-      });
-    }, 1000);
+      }
+    };
 
-    return () => clearInterval(interval);
-  }, [gameState.currentPlayerIndex, gameState.turnNumber, gameState.roundOver]);
+    const handleRemoteEmote = (data: { playerId: string; emote: string }) => {
+      if (data.playerId && data.emote && data.playerId !== currentUserId) {
+        triggerOpponentActionMsg(data.playerId, data.emote);
+      }
+    };
+
+    const handleRemoteChat = (data: { playerId: string; message: string }) => {
+      if (data.playerId && data.message && data.playerId !== currentUserId) {
+        triggerOpponentActionMsg(data.playerId, data.message);
+      }
+    };
+
+    const handleRemoteGameOver = (data: { winnerId: string; gameState?: UnoGameState }) => {
+      if (data.gameState) {
+        setGameState(data.gameState);
+      }
+    };
+
+    socketService.on(SOCKET_EVENTS.GAME_MOVE, handleRemoteMove);
+    socketService.on(SOCKET_EVENTS.GAME_EMOTE, handleRemoteEmote);
+    socketService.on(SOCKET_EVENTS.CHAT_MESSAGE, handleRemoteChat);
+    socketService.on(SOCKET_EVENTS.GAME_OVER, handleRemoteGameOver);
+
+    return () => {
+      socketService.off(SOCKET_EVENTS.GAME_MOVE);
+      socketService.off(SOCKET_EVENTS.GAME_EMOTE);
+      socketService.off(SOCKET_EVENTS.CHAT_MESSAGE);
+      socketService.off(SOCKET_EVENTS.GAME_OVER);
+    };
+  }, [mode, matchId, currentUserId, player1Name, isSoundOn, triggerOpponentActionMsg]);
 
   // Execute Move Helper
   const executeMove = useCallback(
@@ -155,7 +234,16 @@ export const UnoGameScreen: React.FC = () => {
       if (res.isSuccess) {
         gameStateRef.current = res.newState;
         setGameState(res.newState);
-        soundService.play('card_flip');
+        if (isSoundOn) soundService.play('card_flip');
+
+        if (mode !== 'computer' && mode !== 'local' && playerId === currentUserId) {
+          socketService.emit(SOCKET_EVENTS.GAME_MOVE, {
+            matchId,
+            move,
+            playerId: currentUserId,
+            gameState: res.newState,
+          });
+        }
 
         if (res.newState.lastAction?.actionText) {
           triggerVfx(res.newState.lastAction.actionText);
@@ -163,8 +251,18 @@ export const UnoGameScreen: React.FC = () => {
 
         // Check if game won
         if (res.newState.roundOver && res.newState.winnerId) {
-          soundService.play('game_win');
+          if (isSoundOn) soundService.play('game_win');
           vibrationService.vibrate('success');
+
+          if (mode !== 'computer' && mode !== 'local') {
+            socketService.emit(SOCKET_EVENTS.GAME_OVER, {
+              matchId,
+              winnerId: res.newState.winnerId,
+              stake,
+              prizePool,
+              gameState: res.newState,
+            });
+          }
 
           setTimeout(() => {
             navigation.navigate(ROUTES.UNO_RESULT, {
@@ -173,6 +271,8 @@ export const UnoGameScreen: React.FC = () => {
               winnerId: res.newState.winnerId,
               mode,
               difficulty,
+              stake,
+              prizePool,
             });
           }, 1200);
         }
@@ -180,8 +280,65 @@ export const UnoGameScreen: React.FC = () => {
         vibrationService.vibrate('error');
       }
     },
-    [mode, difficulty, navigation, triggerVfx],
+    [mode, difficulty, navigation, triggerVfx, isSoundOn, currentUserId, matchId, stake, prizePool],
   );
+
+  // Turn Countdown Timer Interval
+  useEffect(() => {
+    if (gameState.roundOver) return;
+
+    setTimeLeft(initialTimeSeconds);
+    const interval = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) return 0;
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [
+    gameState.currentPlayerIndex,
+    gameState.turnNumber,
+    gameState.isDrawPhase,
+    gameState.roundOver,
+    initialTimeSeconds,
+  ]);
+
+  // Turn Timeout Watchdog
+  useEffect(() => {
+    if (gameState.roundOver || timeLeft > 0) return;
+
+    const curState = gameStateRef.current;
+    if (curState.roundOver) return;
+
+    if (curState.currentPlayerId === myPlayer.id) {
+      if (curState.isDrawPhase) {
+        executeMove({ type: 'pass_turn' }, myPlayer.id);
+      } else {
+        executeMove({ type: 'draw_card' }, myPlayer.id);
+      }
+    } else {
+      const curPlayer = curState.players[curState.currentPlayerIndex];
+      if (curPlayer && curPlayer.isBot) {
+        const decision = UnoBotAI.getBotDecision(curState, curPlayer.id);
+        let moveRes = unoEngine.applyMove(curState, decision.move, curPlayer.id);
+        if (!moveRes.isSuccess) {
+          moveRes = unoEngine.applyMove(curState, { type: 'draw_card' }, curPlayer.id);
+        }
+        if (moveRes.isSuccess && moveRes.newState) {
+          gameStateRef.current = moveRes.newState;
+          setGameState(moveRes.newState);
+        } else {
+          const fallbackState = JSON.parse(JSON.stringify(curState));
+          fallbackState.isDrawPhase = false;
+          fallbackState.drawnCardId = undefined;
+          unoEngine.advanceTurn(fallbackState, 1);
+          gameStateRef.current = fallbackState;
+          setGameState(fallbackState);
+        }
+      }
+    }
+  }, [timeLeft, myPlayer.id, executeMove, gameState.roundOver]);
 
   // Bot AI Turn Loop
   useEffect(() => {
@@ -189,48 +346,90 @@ export const UnoGameScreen: React.FC = () => {
 
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
     if (currentPlayer && currentPlayer.isBot) {
-      setBotThinkingText(`${currentPlayer.name} is thinking...`);
-
       const decision = UnoBotAI.getBotDecision(gameStateRef.current, currentPlayer.id);
+      // Realistic human-like thinking delay (1.4s - 2.0s)
+      const thinkingDelay = Math.min(2200, Math.max(1400, decision.delayMs + 400));
 
       const botTimer = setTimeout(() => {
-        setBotThinkingText('');
-
         let currentS = gameStateRef.current;
+        if (currentS.roundOver || currentS.currentPlayerId !== currentPlayer.id) {
+          return;
+        }
 
-        // If bot catches opponent Uno
         if (decision.catchTargetId) {
           const catchRes = unoEngine.applyMove(
             currentS,
             { type: 'catch_uno', targetPlayerId: decision.catchTargetId },
             currentPlayer.id,
           );
-          if (catchRes.isSuccess) currentS = catchRes.newState;
+          if (catchRes.isSuccess) {
+            currentS = catchRes.newState;
+            triggerOpponentActionMsg(currentPlayer.id, '⚡ Caught UNO Penalty!');
+          }
         }
 
-        // If bot calls Uno
         if (decision.shouldShoutUno) {
           const unoRes = unoEngine.applyMove(
             currentS,
             { type: 'call_uno' },
             currentPlayer.id,
           );
-          if (unoRes.isSuccess) currentS = unoRes.newState;
+          if (unoRes.isSuccess) {
+            currentS = unoRes.newState;
+            triggerOpponentActionMsg(currentPlayer.id, '🔥 Shouted UNO!');
+          }
         }
 
-        // Apply primary bot move
-        const moveRes = unoEngine.applyMove(currentS, decision.move, currentPlayer.id);
-        if (moveRes.isSuccess) {
+        if (decision.move.type === 'play_card' && decision.move.cardId) {
+          const playedCard = currentS.players[currentS.currentPlayerIndex]?.hand.find(
+            (c) => c.id === decision.move.cardId,
+          );
+          if (playedCard) {
+            triggerFlight({
+              card: playedCard,
+              from: 'topOpponent',
+              to: 'discardPile',
+            });
+            triggerOpponentActionMsg(
+              currentPlayer.id,
+              `🃏 Played ${playedCard.color.toUpperCase()} ${playedCard.value.toUpperCase()}`,
+            );
+          }
+        } else if (decision.move.type === 'draw_card') {
+          triggerOpponentActionMsg(currentPlayer.id, '🎴 Drew a card');
+        } else if (decision.move.type === 'pass_turn') {
+          triggerOpponentActionMsg(currentPlayer.id, '⏩ Passed turn');
+        }
+
+        let moveRes = unoEngine.applyMove(currentS, decision.move, currentPlayer.id);
+
+        if (!moveRes.isSuccess) {
+          if (currentS.isDrawPhase) {
+            moveRes = unoEngine.applyMove(currentS, { type: 'pass_turn' }, currentPlayer.id);
+          } else {
+            moveRes = unoEngine.applyMove(currentS, { type: 'draw_card' }, currentPlayer.id);
+          }
+        }
+
+        if (!moveRes.isSuccess) {
+          const safeState = JSON.parse(JSON.stringify(currentS));
+          safeState.isDrawPhase = false;
+          safeState.drawnCardId = undefined;
+          unoEngine.advanceTurn(safeState, 1);
+          moveRes = { newState: safeState, isSuccess: true };
+        }
+
+        if (moveRes.isSuccess && moveRes.newState) {
           gameStateRef.current = moveRes.newState;
           setGameState(moveRes.newState);
-          soundService.play('card_flip');
+          if (isSoundOn) soundService.play('card_flip');
 
           if (moveRes.newState.lastAction?.actionText) {
             triggerVfx(moveRes.newState.lastAction.actionText);
           }
 
           if (moveRes.newState.roundOver && moveRes.newState.winnerId) {
-            soundService.play('game_win');
+            if (isSoundOn) soundService.play('game_win');
             vibrationService.vibrate('success');
 
             setTimeout(() => {
@@ -240,11 +439,13 @@ export const UnoGameScreen: React.FC = () => {
                 winnerId: moveRes.newState.winnerId,
                 mode,
                 difficulty,
+                stake,
+                prizePool,
               });
             }, 1200);
           }
         }
-      }, decision.delayMs);
+      }, thinkingDelay);
 
       return () => clearTimeout(botTimer);
     }
@@ -257,18 +458,26 @@ export const UnoGameScreen: React.FC = () => {
     difficulty,
     navigation,
     triggerVfx,
+    triggerFlight,
+    triggerOpponentActionMsg,
+    isSoundOn,
   ]);
 
   // Handle Player Card Tap
   const handleCardPress = (card: UnoCard) => {
     if (!isMyTurn || gameState.roundOver) return;
 
-    // Check if card requires Wild Color selection
     if (UnoRules.isWildCard(card)) {
       setPendingWildCard(card);
       setShowColorPicker(true);
       return;
     }
+
+    triggerFlight({
+      card,
+      from: 'playerHand',
+      to: 'discardPile',
+    });
 
     executeMove({ type: 'play_card', cardId: card.id }, myPlayer.id);
   };
@@ -277,6 +486,12 @@ export const UnoGameScreen: React.FC = () => {
   const handleColorSelected = (color: UnoActiveColor) => {
     setShowColorPicker(false);
     if (pendingWildCard) {
+      triggerFlight({
+        card: pendingWildCard,
+        from: 'playerHand',
+        to: 'discardPile',
+      });
+
       executeMove(
         { type: 'play_card', cardId: pendingWildCard.id, chosenColor: color },
         myPlayer.id,
@@ -288,6 +503,11 @@ export const UnoGameScreen: React.FC = () => {
   // Handle Draw Card
   const handleDrawCard = () => {
     if (!isMyTurn || gameState.isDrawPhase || gameState.roundOver) return;
+    triggerFlight({
+      isBack: true,
+      from: 'deck',
+      to: 'playerHand',
+    });
     executeMove({ type: 'draw_card' }, myPlayer.id);
   };
 
@@ -301,127 +521,367 @@ export const UnoGameScreen: React.FC = () => {
   const handleShoutUno = () => {
     executeMove({ type: 'call_uno' }, myPlayer.id);
     vibrationService.vibrate('success');
+    showToast('🔥 YOU SHOUTED UNO!');
   };
 
   // Handle Catch Opponent Uno
   const handleCatchUno = (targetPlayerId: string) => {
     executeMove({ type: 'catch_uno', targetPlayerId }, myPlayer.id);
+    showToast('⚡ CAUGHT UNO PENALTY (+2)!');
   };
 
-  // Opponents arrangement
-  const otherPlayers = gameState.players.filter((p) => p.id !== myPlayer.id);
-  const topOpponent = otherPlayers[0];
-  const leftOpponent = otherPlayers.length > 1 ? otherPlayers[1] : null;
-  const rightOpponent = otherPlayers.length > 2 ? otherPlayers[2] : null;
+  const handleSendReaction = (emoji: string) => {
+    triggerOpponentActionMsg(myPlayer.id, emoji);
+    if (mode !== 'computer' && mode !== 'local') {
+      socketService.emit(SOCKET_EVENTS.GAME_EMOTE, {
+        matchId,
+        playerId: currentUserId,
+        emote: emoji,
+      });
+    }
+    showToast(`Sent ${emoji}`);
+  };
+
+  const handleSendChat = (msg: string) => {
+    triggerOpponentActionMsg(myPlayer.id, msg);
+    if (mode !== 'computer' && mode !== 'local') {
+      socketService.emit(SOCKET_EVENTS.CHAT_MESSAGE, {
+        matchId,
+        playerId: currentUserId,
+        message: msg,
+      });
+    }
+    showToast('Message sent');
+  };
+
+  const getPlayerBySeat = (seat: string): UnoPlayer | undefined => {
+    if (seat === 'bottom') return myPlayer;
+    const opponents = gameState.players.filter((p) => p.id !== myPlayer.id);
+
+    if (opponents.length === 1) {
+      if (seat === 'top') return opponents[0];
+      return undefined;
+    }
+
+    if (opponents.length === 3) {
+      if (seat === 'top') return opponents[0];
+      if (seat === 'right') return opponents[1];
+      if (seat === 'left') return opponents[2];
+      return undefined;
+    }
+
+    const seatMap: Record<string, number> = {
+      top: 0,
+      topRight: 1,
+      right: 2,
+      bottomRight: 3,
+      bottomLeft: 4,
+      left: 5,
+      topLeft: 6,
+    };
+
+    const index = seatMap[seat];
+    return index !== undefined && index < opponents.length ? opponents[index] : undefined;
+  };
+
+  const rohanPlayer = getPlayerBySeat('top');
+  const priyaPlayer = getPlayerBySeat('topRight');
+  const arjunPlayer = getPlayerBySeat('right');
+  const vikramPlayer = getPlayerBySeat('bottomRight');
+  const simranPlayer = getPlayerBySeat('bottomLeft');
+  const karanPlayer = getPlayerBySeat('left');
+  const ananyaPlayer = getPlayerBySeat('topLeft');
+
+  const formattedRoomCode = matchId.startsWith('UN') ? matchId : 'UN0856';
 
   return (
-    <View style={[styles.container, { backgroundColor: isDark ? '#050D09' : '#0B1A12' }]}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" />
 
-      {/* Top Table App Bar */}
+      {/* Cozy Dark Room Background */}
       <LinearGradient
-        colors={['rgba(192, 57, 43, 0.9)', 'rgba(100, 30, 22, 0.6)', 'transparent']}
-        style={[styles.topBar, { paddingTop: Math.max(insets.top + 6, 24) }]}
-      >
-        <TouchableOpacity
-          activeOpacity={0.7}
-          style={styles.iconBtn}
-          onPress={() => setIsPauseModalOpen(true)}
-        >
-          <Text style={styles.iconBtnText}>⏸</Text>
-        </TouchableOpacity>
+        colors={['#0F151B', '#0B0F13', '#06080A']}
+        style={StyleSheet.absoluteFill}
+      />
 
-        <View style={styles.topBarCenter}>
-          <Text style={styles.matchTitle}>
-            {mode === 'computer' ? `VS ROBOT (${difficulty.toUpperCase()})` : 'PASS & PLAY'}
-          </Text>
-          {botThinkingText ? (
-            <Text style={styles.botThinkingText}>{botThinkingText}</Text>
-          ) : (
-            <Text style={styles.turnStatusText}>
-              {isMyTurn ? '🌟 YOUR TURN' : `${gameState.players[gameState.currentPlayerIndex].name}'s Turn`}
-            </Text>
+      {/* ─── TOP APP BAR ────────────────────────────────────────────── */}
+      <View style={[styles.topBar, { paddingTop: Math.max(insets.top + 4, 20) }]}>
+        {/* Left: Back Button & Room Code Pill */}
+        <View style={styles.topLeftGroup}>
+          <TouchableOpacity
+            activeOpacity={0.75}
+            style={styles.glassCircleBtn}
+            onPress={() => setIsPauseModalOpen(true)}
+          >
+            <Text style={styles.backChevronText}>‹</Text>
+          </TouchableOpacity>
+
+          {mode !== 'computer' && (
+            <TouchableOpacity
+              activeOpacity={0.75}
+              style={styles.roomCodePill}
+              onPress={() => showToast(`Room Code: ${formattedRoomCode} copied!`)}
+            >
+              <Text style={styles.roomCodeLabel}>ROOM CODE</Text>
+              <View style={styles.roomCodeRow}>
+                <Text style={styles.roomCodeValue}>{formattedRoomCode}</Text>
+                <Text style={styles.copyIconGlyph}>⧉</Text>
+              </View>
+            </TouchableOpacity>
           )}
         </View>
 
-        <View style={styles.iconBtn}>
-          <Text style={styles.deckSmallText}>🂡 {gameState.deck.length}</Text>
+        {/* Center: 3D UNO Official Logo & Prize Pill */}
+        <View style={styles.unoLogoWrap}>
+          <Text style={styles.unoLogo3DText}>UNO</Text>
+          {prizePool > 0 && (
+            <View style={styles.prizePoolPill}>
+              <Text style={styles.prizePoolPillText}>🏆 {prizePool.toLocaleString()} 🪙</Text>
+            </View>
+          )}
         </View>
-      </LinearGradient>
 
-      {/* Action VFX Overlay */}
-      <UnoActionVFXOverlay visible={showActionVfx} actionText={actionVfxText} />
+        {/* Right: Sound, Mic, Settings */}
+        <View style={styles.topRightGroup}>
+          <TouchableOpacity
+            activeOpacity={0.75}
+            style={styles.glassCircleBtn}
+            onPress={() => {
+              setIsSoundOn((prev) => !prev);
+              showToast(isSoundOn ? 'Sound Muted' : 'Sound Enabled');
+            }}
+          >
+            <Text style={styles.topIconText}>{isSoundOn ? '🔊' : '🔇'}</Text>
+          </TouchableOpacity>
 
-      {/* Main Table Arena */}
-      <View style={styles.tableArena}>
-        {/* Top Opponent (2P or 4P Center) */}
-        {topOpponent && (
-          <View style={styles.topOpponentArea}>
-            <UnoOpponentHand
-              player={topOpponent}
-              isCurrentTurn={gameState.currentPlayerId === topOpponent.id}
-              position="top"
-              canCatchUno={UnoRules.canCatchUno(topOpponent)}
-              onCatchUno={handleCatchUno}
-            />
-          </View>
-        )}
+          <TouchableOpacity
+            activeOpacity={0.75}
+            style={styles.glassCircleBtn}
+            onPress={() => {
+              setIsMicOn((prev) => !prev);
+              showToast(isMicOn ? 'Mic Off' : 'Mic On');
+            }}
+          >
+            <Text style={styles.topIconText}>{isMicOn ? '🎙️' : '🎤'}</Text>
+          </TouchableOpacity>
 
-        {/* Center Middle Row (Left Opponent, Center Orbit & Piles, Right Opponent) */}
-        <View style={styles.centerRow}>
-          {/* Left Opponent in 4-Player Table */}
-          {leftOpponent && (
-            <View style={styles.sideOpponentArea}>
-              <UnoOpponentHand
-                player={leftOpponent}
-                isCurrentTurn={gameState.currentPlayerId === leftOpponent.id}
-                position="left"
-                canCatchUno={UnoRules.canCatchUno(leftOpponent)}
-                onCatchUno={handleCatchUno}
-              />
-            </View>
-          )}
-
-          {/* Center Table Piles & Direction Orbit */}
-          <UnoTableCenter
-            topCard={gameState.topCard}
-            activeColor={gameState.activeColor}
-            deckCount={gameState.deck.length}
-            direction={gameState.direction}
-            isMyTurn={isMyTurn}
-            isDrawPhase={gameState.isDrawPhase}
-            canPass={gameState.isDrawPhase}
-            onDrawCard={handleDrawCard}
-            onPassTurn={handlePassTurn}
-            disabled={gameState.roundOver}
-          />
-
-          {/* Right Opponent in 4-Player Table */}
-          {rightOpponent && (
-            <View style={styles.sideOpponentArea}>
-              <UnoOpponentHand
-                player={rightOpponent}
-                isCurrentTurn={gameState.currentPlayerId === rightOpponent.id}
-                position="right"
-                canCatchUno={UnoRules.canCatchUno(rightOpponent)}
-                onCatchUno={handleCatchUno}
-              />
-            </View>
-          )}
+          <TouchableOpacity
+            activeOpacity={0.75}
+            style={styles.glassCircleBtn}
+            onPress={() => setIsPauseModalOpen(true)}
+          >
+            <Text style={styles.topIconText}>⚙️</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
-      {/* Bottom Area: Player Bar & Hand */}
-      <View style={[styles.bottomHandArea, { paddingBottom: insets.bottom + 8 }]}>
-        <UnoPlayerBar
-          player={myPlayer}
-          isMyTurn={isMyTurn}
-          timeLeft={timeLeft}
-          maxTime={initialTimeSeconds}
-          canShoutUno={UnoRules.canShoutUno(myPlayer)}
-          onShoutUno={handleShoutUno}
-        />
+      {/* Dynamic Turn Announcement Banner */}
+      <View style={styles.turnBannerWrap}>
+        {isMyTurn ? (
+          <View style={styles.myTurnBannerBadge}>
+            <Text style={styles.myTurnBannerText}>
+              ✨ YOUR TURN • PLAY OR DRAW ({timeLeft}s)
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.botTurnBannerBadge}>
+            <Text style={styles.botTurnBannerText}>
+              🤖 {gameState.players[gameState.currentPlayerIndex]?.name?.toUpperCase() || 'OPPONENT'}'S TURN ({timeLeft}s)
+            </Text>
+          </View>
+        )}
+      </View>
 
+      {/* Floating Toast Notification */}
+      {toastMsg ? (
+        <View style={styles.toastContainer} pointerEvents="none">
+          <LinearGradient
+            colors={['#2D3436', '#1E272E']}
+            style={styles.toastGradient}
+          >
+            <Text style={styles.toastText}>{toastMsg}</Text>
+          </LinearGradient>
+        </View>
+      ) : null}
+
+      {/* Flying Card VFX Overlay */}
+      <UnoCardFlightOverlay flights={cardFlights} onFlightFinished={removeFlight} />
+
+      {/* Action Banner VFX Overlay */}
+      <UnoActionVFXOverlay visible={showActionVfx} actionText={actionVfxText} />
+
+      {/* ─── MAIN OVAL WOODEN TABLE ARENA ───────────────────────────── */}
+      <View style={styles.tableCanvasContainer}>
+        <LinearGradient
+          colors={['#5A371F', '#3B2111', '#231208']}
+          style={styles.woodenTableOuterOval}
+        >
+          <LinearGradient
+            colors={['#3B2213', '#2B170C', '#1D0E07', '#150A04']}
+            start={{ x: 0.5, y: 0.1 }}
+            end={{ x: 0.5, y: 0.9 }}
+            style={styles.woodenTableInnerSurface}
+          >
+            {/* Center Warm Ambient Spotlight */}
+            <View style={styles.centralWarmSpotlight} />
+
+            {/* ─── 1. TOP OPPONENT (Rohan) ─── */}
+            <View style={styles.seatTopCenter}>
+              {rohanPlayer && (
+                <UnoOpponentHand
+                  player={rohanPlayer}
+                  isCurrentTurn={gameState.currentPlayerId === rohanPlayer.id}
+                  position="top"
+                  ringColor="#2ECC71"
+                  timeLeft={timeLeft}
+                  maxTime={initialTimeSeconds}
+                  lastActionText={opponentActions[rohanPlayer.id]}
+                  canCatchUno={UnoRules.canCatchUno(rohanPlayer)}
+                  onCatchUno={handleCatchUno}
+                />
+              )}
+            </View>
+
+            {/* ─── 2. TOP-LEFT & TOP-RIGHT OPPONENTS (Ananya & Priya) ─── */}
+            <View style={styles.topSideSeatsRow}>
+              <View style={styles.seatTopLeft}>
+                {ananyaPlayer && (
+                  <UnoOpponentHand
+                    player={ananyaPlayer}
+                    isCurrentTurn={gameState.currentPlayerId === ananyaPlayer.id}
+                    position="topLeft"
+                    ringColor="#54A0FF"
+                    timeLeft={timeLeft}
+                    maxTime={initialTimeSeconds}
+                    lastActionText={opponentActions[ananyaPlayer.id]}
+                    canCatchUno={UnoRules.canCatchUno(ananyaPlayer)}
+                    onCatchUno={handleCatchUno}
+                  />
+                )}
+              </View>
+
+              <View style={styles.seatTopRight}>
+                {priyaPlayer && (
+                  <UnoOpponentHand
+                    player={priyaPlayer}
+                    isCurrentTurn={gameState.currentPlayerId === priyaPlayer.id}
+                    position="topRight"
+                    ringColor="#E056FD"
+                    timeLeft={timeLeft}
+                    maxTime={initialTimeSeconds}
+                    lastActionText={opponentActions[priyaPlayer.id]}
+                    canCatchUno={UnoRules.canCatchUno(priyaPlayer)}
+                    onCatchUno={handleCatchUno}
+                  />
+                )}
+              </View>
+            </View>
+
+            {/* ─── 3. MID-LEFT, CENTER TABLE, MID-RIGHT (Karan, Orbit, Arjun) ─── */}
+            <View style={styles.midSideSeatsRow}>
+              <View style={styles.seatMidLeft}>
+                {karanPlayer && (
+                  <UnoOpponentHand
+                    player={karanPlayer}
+                    isCurrentTurn={gameState.currentPlayerId === karanPlayer.id}
+                    position="left"
+                    ringColor="#F1C40F"
+                    timeLeft={timeLeft}
+                    maxTime={initialTimeSeconds}
+                    lastActionText={opponentActions[karanPlayer.id]}
+                    canCatchUno={UnoRules.canCatchUno(karanPlayer)}
+                    onCatchUno={handleCatchUno}
+                  />
+                )}
+              </View>
+
+              {/* CENTER TABLE */}
+              <View style={styles.centerTableContainer}>
+                <UnoTableCenter
+                  topCard={gameState.topCard}
+                  activeColor={gameState.activeColor}
+                  deckCount={gameState.deck.length}
+                  direction={gameState.direction}
+                  isMyTurn={isMyTurn}
+                  isDrawPhase={gameState.isDrawPhase}
+                  canPass={gameState.isDrawPhase}
+                  onDrawCard={handleDrawCard}
+                  onPassTurn={handlePassTurn}
+                  disabled={gameState.roundOver}
+                />
+              </View>
+
+              <View style={styles.seatMidRight}>
+                {arjunPlayer && (
+                  <UnoOpponentHand
+                    player={arjunPlayer}
+                    isCurrentTurn={gameState.currentPlayerId === arjunPlayer.id}
+                    position="right"
+                    ringColor="#00D2D3"
+                    timeLeft={timeLeft}
+                    maxTime={initialTimeSeconds}
+                    lastActionText={opponentActions[arjunPlayer.id]}
+                    canCatchUno={UnoRules.canCatchUno(arjunPlayer)}
+                    onCatchUno={handleCatchUno}
+                  />
+                )}
+              </View>
+            </View>
+
+            {/* ─── 4. BOTTOM-LEFT & BOTTOM-RIGHT OPPONENTS (Simran & Vikram) ─── */}
+            <View style={styles.bottomSideSeatsRow}>
+              <View style={styles.seatBottomLeft}>
+                {simranPlayer && (
+                  <UnoOpponentHand
+                    player={simranPlayer}
+                    isCurrentTurn={gameState.currentPlayerId === simranPlayer.id}
+                    position="bottomLeft"
+                    ringColor="#A55EEA"
+                    timeLeft={timeLeft}
+                    maxTime={initialTimeSeconds}
+                    lastActionText={opponentActions[simranPlayer.id]}
+                    canCatchUno={UnoRules.canCatchUno(simranPlayer)}
+                    onCatchUno={handleCatchUno}
+                  />
+                )}
+              </View>
+
+              <View style={styles.seatBottomRight}>
+                {vikramPlayer && (
+                  <UnoOpponentHand
+                    player={vikramPlayer}
+                    isCurrentTurn={gameState.currentPlayerId === vikramPlayer.id}
+                    position="bottomRight"
+                    ringColor="#FF6B6B"
+                    timeLeft={timeLeft}
+                    maxTime={initialTimeSeconds}
+                    lastActionText={opponentActions[vikramPlayer.id]}
+                    canCatchUno={UnoRules.canCatchUno(vikramPlayer)}
+                    onCatchUno={handleCatchUno}
+                  />
+                )}
+              </View>
+            </View>
+
+            {/* ─── 5. PLAYER'S OWN SEAT ("You") AT BOTTOM CENTER ─── */}
+            <View style={styles.seatBottomCenter}>
+              <UnoOpponentHand
+                player={myPlayer}
+                isCurrentTurn={isMyTurn}
+                position="bottom"
+                ringColor="#2ECC71"
+                isMe
+                timeLeft={timeLeft}
+                maxTime={initialTimeSeconds}
+                lastActionText={opponentActions[myPlayer.id]}
+              />
+            </View>
+          </LinearGradient>
+        </LinearGradient>
+      </View>
+
+      {/* ─── PLAYER'S CURVED HAND VIEW (BOTTOM) ─────────────────────── */}
+      <View style={styles.playerHandSection}>
         <UnoHandView
           hand={myPlayer.hand}
           topCard={gameState.topCard}
@@ -431,6 +891,17 @@ export const UnoGameScreen: React.FC = () => {
           drawnCardId={gameState.drawnCardId}
           onCardPress={handleCardPress}
           disabled={gameState.roundOver}
+        />
+      </View>
+
+      {/* ─── BOTTOM ACTION BAR (Emoji, Giant UNO! Button, Chat) ──────── */}
+      <View style={[styles.bottomBarContainer, { paddingBottom: Math.max(insets.bottom, 6) }]}>
+        <UnoPlayerBar
+          hasCalledUno={myPlayer.hasCalledUno}
+          canShoutUno={UnoRules.canShoutUno(myPlayer)}
+          onShoutUno={handleShoutUno}
+          onSendReaction={handleSendReaction}
+          onSendChat={handleSendChat}
         />
       </View>
 
@@ -460,7 +931,7 @@ export const UnoGameScreen: React.FC = () => {
                 colors={['#2ECC71', '#27AE60']}
                 style={styles.pauseBtnGradient}
               >
-                <Text style={styles.pauseBtnText}>RESUME GAME</Text>
+                <Text style={styles.pauseBtnText}>RESUME MATCH</Text>
               </LinearGradient>
             </TouchableOpacity>
 
@@ -484,86 +955,289 @@ export const UnoGameScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#070A0D',
   },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-    zIndex: 20,
+    paddingHorizontal: 12,
+    paddingBottom: 2,
+    zIndex: 30,
   },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: 'rgba(0,0,0,0.3)',
+  topLeftGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  topRightGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  glassCircleBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.15)',
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
   },
-  iconBtnText: {
-    fontSize: 16,
+  backChevronText: {
+    fontSize: 22,
     color: '#FFFFFF',
+    fontWeight: '300',
+    marginTop: -3,
   },
-  deckSmallText: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: '#F1C40F',
+  topIconText: {
+    fontSize: 14,
   },
-  topBarCenter: {
-    alignItems: 'center',
+  roomCodePill: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.16)',
   },
-  matchTitle: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: '#FADBD8',
-    letterSpacing: 1,
+  roomCodeLabel: {
+    fontSize: 7.5,
+    fontWeight: '700',
+    color: '#A4B0BE',
+    letterSpacing: 0.4,
   },
-  turnStatusText: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: '#2ECC71',
-    marginTop: 2,
-  },
-  botThinkingText: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: '#F1C40F',
-    marginTop: 2,
-  },
-  tableArena: {
-    flex: 1,
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
-  },
-  topOpponentArea: {
-    alignItems: 'center',
-  },
-  centerRow: {
+  roomCodeRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-    paddingHorizontal: 10,
+    gap: 3,
   },
-  sideOpponentArea: {
-    width: 70,
+  roomCodeValue: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 0.4,
+  },
+  copyIconGlyph: {
+    fontSize: 10,
+    color: '#CBD5E1',
+  },
+  unoLogoWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    transform: [{ rotate: '-8deg' }],
+  },
+  prizePoolPill: {
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FFD700',
+    marginTop: 2,
+  },
+  prizePoolPillText: {
+    fontSize: 9.5,
+    fontWeight: '900',
+    color: '#FFD700',
+  },
+  unoLogo3DText: {
+    fontSize: 24,
+    fontWeight: '900',
+    fontStyle: 'italic',
+    color: '#E62429',
+    letterSpacing: 1,
+    textShadowColor: '#FFD700',
+    textShadowOffset: { width: 1.5, height: 1.5 },
+    textShadowRadius: 1,
+  },
+  toastContainer: {
+    position: 'absolute',
+    top: 75,
+    alignSelf: 'center',
+    zIndex: 100,
+  },
+  turnBannerWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 2,
+    zIndex: 20,
+  },
+  myTurnBannerBadge: {
+    backgroundColor: 'rgba(46, 204, 113, 0.22)',
+    paddingHorizontal: 12,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#2ECC71',
+    shadowColor: '#2ECC71',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  myTurnBannerText: {
+    fontSize: 10.5,
+    fontWeight: '900',
+    color: '#2ECC71',
+    letterSpacing: 0.5,
+  },
+  botTurnBannerBadge: {
+    backgroundColor: 'rgba(241, 196, 15, 0.18)',
+    paddingHorizontal: 12,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#F1C40F',
+    shadowColor: '#F1C40F',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  botTurnBannerText: {
+    fontSize: 10.5,
+    fontWeight: '900',
+    color: '#F1C40F',
+    letterSpacing: 0.5,
+  },
+  toastGradient: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#2ECC71',
+  },
+  toastText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  tableCanvasContainer: {
+    flex: 1,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginVertical: 0,
+  },
+  woodenTableOuterOval: {
+    width: '100%',
+    flex: 1,
+    maxHeight: 460,
+    borderRadius: 36,
+    padding: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.8,
+    shadowRadius: 16,
+    elevation: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2.5,
+    borderColor: '#734626',
+  },
+  woodenTableInnerSurface: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    paddingHorizontal: 6,
+    position: 'relative',
+  },
+  centralWarmSpotlight: {
+    position: 'absolute',
+    top: '20%',
+    left: '15%',
+    right: '15%',
+    bottom: '20%',
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 177, 66, 0.05)',
+    pointerEvents: 'none',
+  },
+  seatTopCenter: {
+    zIndex: 15,
+    marginTop: 2,
     alignItems: 'center',
   },
-  bottomHandArea: {
+  topSideSeatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     width: '100%',
-    backgroundColor: 'rgba(8, 16, 12, 0.95)',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    borderTopWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.12)',
+    paddingHorizontal: 12,
+    marginTop: -8,
+    zIndex: 14,
+  },
+  seatTopLeft: {
+    alignItems: 'center',
+    minWidth: 50,
+  },
+  seatTopRight: {
+    alignItems: 'center',
+    minWidth: 50,
+  },
+  midSideSeatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 4,
+    zIndex: 13,
+  },
+  seatMidLeft: {
+    alignItems: 'center',
+    minWidth: 50,
+  },
+  seatMidRight: {
+    alignItems: 'center',
+    minWidth: 50,
+  },
+  centerTableContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomSideSeatsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    paddingHorizontal: 12,
+    marginBottom: -6,
+    zIndex: 12,
+  },
+  seatBottomLeft: {
+    alignItems: 'center',
+    minWidth: 50,
+  },
+  seatBottomRight: {
+    alignItems: 'center',
+    minWidth: 50,
+  },
+  seatBottomCenter: {
+    zIndex: 16,
+    marginBottom: 2,
+    alignItems: 'center',
+  },
+  playerHandSection: {
+    width: '100%',
+    zIndex: 20,
+    marginTop: -6,
+  },
+  bottomBarContainer: {
+    width: '100%',
+    zIndex: 25,
   },
   pauseOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.82)',
+    backgroundColor: 'rgba(0,0,0,0.85)',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
@@ -571,7 +1245,7 @@ const styles = StyleSheet.create({
   pauseModalCard: {
     width: '100%',
     maxWidth: 300,
-    backgroundColor: '#141E18',
+    backgroundColor: '#1E272E',
     borderRadius: 22,
     padding: 22,
     alignItems: 'center',
@@ -586,7 +1260,7 @@ const styles = StyleSheet.create({
   },
   pauseSub: {
     fontSize: 12,
-    color: '#8CA093',
+    color: '#A4B0BE',
     marginTop: 4,
     marginBottom: 20,
   },
@@ -612,7 +1286,7 @@ const styles = StyleSheet.create({
   leaveText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#E74C3C',
+    color: '#FF4757',
   },
 });
 
