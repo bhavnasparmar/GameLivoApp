@@ -1,14 +1,14 @@
-import { Vibration } from 'react-native';
+import { Vibration, Platform } from 'react-native';
 
-// ─── Vibration Service ────────────────────────────────────────────────────────
+// ─── Safe Vibration Service ───────────────────────────────────────────────────
 
-type VibrationPattern = 'tap' | 'success' | 'error' | 'dice_roll';
+export type VibrationPattern = 'tap' | 'success' | 'error' | 'dice_roll';
 
 const patterns: Record<VibrationPattern, number | number[]> = {
-  tap: 50,
-  success: [0, 80, 60, 80],
-  error: [0, 200, 100, 200],
-  dice_roll: [0, 50, 30, 50, 30, 50],
+  tap: 40,
+  success: [0, 80, 50, 80],
+  error: [0, 150, 80, 150],
+  dice_roll: [0, 40, 30, 40, 30, 40],
 };
 
 let _vibrationEnabled = true;
@@ -22,15 +22,39 @@ export const vibrationService = {
 
   vibrate: (pattern: VibrationPattern = 'tap'): void => {
     if (!_vibrationEnabled) return;
-    const p = patterns[pattern];
-    if (Array.isArray(p)) {
-      Vibration.vibrate(p);
-    } else {
-      Vibration.vibrate(p);
+    try {
+      const p = patterns[pattern] || 40;
+      if (Array.isArray(p)) {
+        Vibration.vibrate(p);
+      } else {
+        Vibration.vibrate(p);
+      }
+    } catch (e) {
+      // Graceful fallback if device/emulator doesn't support vibration
     }
   },
 
+  vibrateSuccess: (): void => {
+    vibrationService.vibrate('success');
+  },
+
+  vibrateError: (): void => {
+    vibrationService.vibrate('error');
+  },
+
+  vibrateTap: (): void => {
+    vibrationService.vibrate('tap');
+  },
+
+  vibrateDiceRoll: (): void => {
+    vibrationService.vibrate('dice_roll');
+  },
+
   cancel: (): void => {
-    Vibration.cancel();
+    try {
+      Vibration.cancel();
+    } catch (e) {
+      // Safe fallback
+    }
   },
 };

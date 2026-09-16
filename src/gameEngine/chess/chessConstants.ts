@@ -106,3 +106,19 @@ export const INITIAL_PIECE_ORDER: ChessPieceType[] = [
   'knight',
   'rook',
 ];
+
+export const ALL_CHESS_PIECE_ASSETS = [
+  CHESS_PIECE_IMAGES.white.king,
+  CHESS_PIECE_IMAGES.white.queen,
+  CHESS_PIECE_IMAGES.white.rook,
+  CHESS_PIECE_IMAGES.white.bishop,
+  CHESS_PIECE_IMAGES.white.knight,
+  CHESS_PIECE_IMAGES.white.pawn,
+  CHESS_PIECE_IMAGES.black.king,
+  CHESS_PIECE_IMAGES.black.queen,
+  CHESS_PIECE_IMAGES.black.rook,
+  CHESS_PIECE_IMAGES.black.bishop,
+  CHESS_PIECE_IMAGES.black.knight,
+  CHESS_PIECE_IMAGES.black.pawn,
+];
+

@@ -45,10 +45,10 @@ export type GameStackParamList = {
 
   // Uno
   UnoHome: undefined;
-  UnoMode: undefined;
-  UnoLobby: { lobbyId?: string; isHost: boolean };
-  UnoGame: { matchId: string };
-  UnoResult: { matchId: string };
+  UnoMode: { initialMode?: 'computer' | 'local' | 'rules' } | undefined;
+  UnoLobby: { lobbyId?: string; isHost?: boolean; mode?: 'private' | 'random' } | undefined;
+  UnoGame: { matchId?: string; mode?: any; difficulty?: any; playerCount?: 2 | 4; timeSeconds?: number; player1Name?: string; player2Name?: string };
+  UnoResult: { matchId?: string; gameState?: any; winnerId?: string; mode?: any; difficulty?: any };
 
   // Snake & Ladder
   SnakeLadderHome: undefined;
