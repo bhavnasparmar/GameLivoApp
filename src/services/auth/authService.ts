@@ -30,12 +30,24 @@ const normalizeUser = (raw: any): User => ({
 
 const normalizeTokens = (data: any): AuthTokens | null => {
   if (!data) return null;
-  if (data.tokens && data.tokens.accessToken) return data.tokens;
-  if (data.accessToken) {
+  const rawTokens = data.tokens || (data.data && data.data.tokens) || data;
+  const accessToken =
+    rawTokens.accessToken ||
+    rawTokens.token ||
+    data.accessToken ||
+    data.token ||
+    (data.data && (data.data.accessToken || data.data.token));
+  const refreshToken =
+    rawTokens.refreshToken ||
+    data.refreshToken ||
+    (data.data && data.data.refreshToken) ||
+    '';
+
+  if (accessToken) {
     return {
-      accessToken: data.accessToken,
-      refreshToken: data.refreshToken || '',
-      expiresAt: Date.now() + 15 * 60 * 1000,
+      accessToken,
+      refreshToken,
+      expiresAt: rawTokens.expiresAt || (data.expiresAt) || (Date.now() + 30 * 24 * 60 * 60 * 1000),
     };
   }
   return null;
@@ -54,6 +66,12 @@ export const authService = {
     const user = rawUser ? normalizeUser(rawUser) : null;
     if (tokens) {
       await authService._persistTokens(tokens);
+    }
+    if (user) {
+      await storageService.set(STORAGE_KEYS.USER_PROFILE, user);
+      if (user.id) {
+        await storageService.set(STORAGE_KEYS.USER_ID, user.id);
+      }
     }
     return { tokens: tokens!, user: user as User, message: data?.message };
   },
@@ -83,6 +101,12 @@ export const authService = {
     if (tokens) {
       await authService._persistTokens(tokens);
     }
+    if (user) {
+      await storageService.set(STORAGE_KEYS.USER_PROFILE, user);
+      if (user.id) {
+        await storageService.set(STORAGE_KEYS.USER_ID, user.id);
+      }
+    }
     return { tokens: tokens!, user: user as User, message: data?.message };
   },
 
@@ -92,11 +116,18 @@ export const authService = {
       payload,
     );
     const tokens = normalizeTokens(data);
-    const user = data?.user || (data?.data && data.data.user);
+    const rawUser = data?.user || (data?.data && data.data.user);
+    const user = rawUser ? normalizeUser(rawUser) : null;
     if (tokens) {
       await authService._persistTokens(tokens);
     }
-    return { tokens: tokens!, user, message: data?.message };
+    if (user) {
+      await storageService.set(STORAGE_KEYS.USER_PROFILE, user);
+      if (user.id) {
+        await storageService.set(STORAGE_KEYS.USER_ID, user.id);
+      }
+    }
+    return { tokens: tokens!, user: user as User, message: data?.message };
   },
 
   sendOTP: async (mobile: string, type: string): Promise<{ message: string }> => {
@@ -120,15 +151,20 @@ export const authService = {
   logout: async (): Promise<void> => {
     try {
       await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
+    } catch {
+      // Ignore network errors on logout
     } finally {
       await storageService.remove(STORAGE_KEYS.ACCESS_TOKEN);
       await storageService.remove(STORAGE_KEYS.REFRESH_TOKEN);
       await storageService.remove(STORAGE_KEYS.USER_ID);
+      await storageService.remove(STORAGE_KEYS.USER_PROFILE);
     }
   },
 
   _persistTokens: async (tokens: AuthTokens): Promise<void> => {
     await storageService.set(STORAGE_KEYS.ACCESS_TOKEN, tokens.accessToken);
-    await storageService.set(STORAGE_KEYS.REFRESH_TOKEN, tokens.refreshToken);
+    if (tokens.refreshToken) {
+      await storageService.set(STORAGE_KEYS.REFRESH_TOKEN, tokens.refreshToken);
+    }
   },
 };

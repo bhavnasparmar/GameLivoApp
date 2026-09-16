@@ -31,6 +31,8 @@ import {
 } from '../../../../gameEngine/uno/unoConstants';
 import { soundService } from '../../../../services/sound/soundService';
 import { vibrationService } from '../../../../services/vibration/vibrationService';
+import { socketService } from '../../../../services/socket/socketService';
+import { SOCKET_EVENTS } from '../../../../constants/socketConstants';
 import { useAppSelector } from '../../../../redux/hooks';
 
 import UnoHandView from '../components/UnoHandView';
@@ -59,6 +61,9 @@ export const UnoGameScreen: React.FC = () => {
   const initialTimeSeconds = route.params?.timeSeconds || UNO_DEFAULT_TIME_SECONDS;
 
   const player1Name = route.params?.player1Name || userProfile?.name || userProfile?.username || 'You';
+  const customPlayers = route.params?.players;
+  const stake: number = route.params?.stake || 0;
+  const prizePool: number = route.params?.prizePool || 0;
 
   // State for toggles & toasts
   const [isSoundOn, setIsSoundOn] = useState<boolean>(true);
@@ -72,6 +77,9 @@ export const UnoGameScreen: React.FC = () => {
 
   // Build Players Configuration
   const initialPlayers = React.useMemo(() => {
+    if (customPlayers && customPlayers.length > 0) {
+      return customPlayers;
+    }
     if (playerCount === 2) {
       const bot = UNO_ROBOT_PROFILES[0];
       return [
@@ -98,7 +106,7 @@ export const UnoGameScreen: React.FC = () => {
         })),
       ];
     }
-  }, [playerCount, currentUserId, player1Name]);
+  }, [playerCount, currentUserId, player1Name, customPlayers]);
 
   // Game Engine State
   const [gameState, setGameState] = useState<UnoGameState>(() =>
@@ -156,6 +164,68 @@ export const UnoGameScreen: React.FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  // ─── Socket Synchronization for Online & Friends ─────────────────────────
+  useEffect(() => {
+    if (mode === 'computer' || mode === 'local') return;
+
+    if (!socketService.isConnected()) {
+      socketService.connect();
+    }
+
+    socketService.emit(SOCKET_EVENTS.GAME_STATE, { matchId });
+    socketService.emit(SOCKET_EVENTS.PLAYER_JOIN, {
+      matchId,
+      userId: currentUserId,
+      username: player1Name,
+    });
+
+    const handleRemoteMove = (data: { move?: UnoMove; playerId?: string; gameState?: UnoGameState }) => {
+      if (data.gameState) {
+        setGameState(data.gameState);
+        gameStateRef.current = data.gameState;
+        if (isSoundOn) soundService.play('card_flip');
+      } else if (data.move && data.playerId && data.playerId !== currentUserId) {
+        const currentState = gameStateRef.current;
+        const res = unoEngine.applyMove(currentState, data.move, data.playerId);
+        if (res.isSuccess) {
+          gameStateRef.current = res.newState;
+          setGameState(res.newState);
+          if (isSoundOn) soundService.play('card_flip');
+        }
+      }
+    };
+
+    const handleRemoteEmote = (data: { playerId: string; emote: string }) => {
+      if (data.playerId && data.emote && data.playerId !== currentUserId) {
+        triggerOpponentActionMsg(data.playerId, data.emote);
+      }
+    };
+
+    const handleRemoteChat = (data: { playerId: string; message: string }) => {
+      if (data.playerId && data.message && data.playerId !== currentUserId) {
+        triggerOpponentActionMsg(data.playerId, data.message);
+      }
+    };
+
+    const handleRemoteGameOver = (data: { winnerId: string; gameState?: UnoGameState }) => {
+      if (data.gameState) {
+        setGameState(data.gameState);
+      }
+    };
+
+    socketService.on(SOCKET_EVENTS.GAME_MOVE, handleRemoteMove);
+    socketService.on(SOCKET_EVENTS.GAME_EMOTE, handleRemoteEmote);
+    socketService.on(SOCKET_EVENTS.CHAT_MESSAGE, handleRemoteChat);
+    socketService.on(SOCKET_EVENTS.GAME_OVER, handleRemoteGameOver);
+
+    return () => {
+      socketService.off(SOCKET_EVENTS.GAME_MOVE);
+      socketService.off(SOCKET_EVENTS.GAME_EMOTE);
+      socketService.off(SOCKET_EVENTS.CHAT_MESSAGE);
+      socketService.off(SOCKET_EVENTS.GAME_OVER);
+    };
+  }, [mode, matchId, currentUserId, player1Name, isSoundOn, triggerOpponentActionMsg]);
+
   // Execute Move Helper
   const executeMove = useCallback(
     (move: UnoMove, playerId: string) => {
@@ -166,6 +236,15 @@ export const UnoGameScreen: React.FC = () => {
         setGameState(res.newState);
         if (isSoundOn) soundService.play('card_flip');
 
+        if (mode !== 'computer' && mode !== 'local' && playerId === currentUserId) {
+          socketService.emit(SOCKET_EVENTS.GAME_MOVE, {
+            matchId,
+            move,
+            playerId: currentUserId,
+            gameState: res.newState,
+          });
+        }
+
         if (res.newState.lastAction?.actionText) {
           triggerVfx(res.newState.lastAction.actionText);
         }
@@ -175,6 +254,16 @@ export const UnoGameScreen: React.FC = () => {
           if (isSoundOn) soundService.play('game_win');
           vibrationService.vibrate('success');
 
+          if (mode !== 'computer' && mode !== 'local') {
+            socketService.emit(SOCKET_EVENTS.GAME_OVER, {
+              matchId,
+              winnerId: res.newState.winnerId,
+              stake,
+              prizePool,
+              gameState: res.newState,
+            });
+          }
+
           setTimeout(() => {
             navigation.navigate(ROUTES.UNO_RESULT, {
               matchId: res.newState.matchId,
@@ -182,6 +271,8 @@ export const UnoGameScreen: React.FC = () => {
               winnerId: res.newState.winnerId,
               mode,
               difficulty,
+              stake,
+              prizePool,
             });
           }, 1200);
         }
@@ -189,7 +280,7 @@ export const UnoGameScreen: React.FC = () => {
         vibrationService.vibrate('error');
       }
     },
-    [mode, difficulty, navigation, triggerVfx, isSoundOn],
+    [mode, difficulty, navigation, triggerVfx, isSoundOn, currentUserId, matchId, stake, prizePool],
   );
 
   // Turn Countdown Timer Interval
@@ -348,6 +439,8 @@ export const UnoGameScreen: React.FC = () => {
                 winnerId: moveRes.newState.winnerId,
                 mode,
                 difficulty,
+                stake,
+                prizePool,
               });
             }, 1200);
           }
@@ -439,11 +532,25 @@ export const UnoGameScreen: React.FC = () => {
 
   const handleSendReaction = (emoji: string) => {
     triggerOpponentActionMsg(myPlayer.id, emoji);
+    if (mode !== 'computer' && mode !== 'local') {
+      socketService.emit(SOCKET_EVENTS.GAME_EMOTE, {
+        matchId,
+        playerId: currentUserId,
+        emote: emoji,
+      });
+    }
     showToast(`Sent ${emoji}`);
   };
 
   const handleSendChat = (msg: string) => {
     triggerOpponentActionMsg(myPlayer.id, msg);
+    if (mode !== 'computer' && mode !== 'local') {
+      socketService.emit(SOCKET_EVENTS.CHAT_MESSAGE, {
+        matchId,
+        playerId: currentUserId,
+        message: msg,
+      });
+    }
     showToast('Message sent');
   };
 
@@ -524,9 +631,14 @@ export const UnoGameScreen: React.FC = () => {
           )}
         </View>
 
-        {/* Center: 3D UNO Official Logo */}
+        {/* Center: 3D UNO Official Logo & Prize Pill */}
         <View style={styles.unoLogoWrap}>
           <Text style={styles.unoLogo3DText}>UNO</Text>
+          {prizePool > 0 && (
+            <View style={styles.prizePoolPill}>
+              <Text style={styles.prizePoolPillText}>🏆 {prizePool.toLocaleString()} 🪙</Text>
+            </View>
+          )}
         </View>
 
         {/* Right: Sound, Mic, Settings */}
@@ -919,6 +1031,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     transform: [{ rotate: '-8deg' }],
+  },
+  prizePoolPill: {
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FFD700',
+    marginTop: 2,
+  },
+  prizePoolPillText: {
+    fontSize: 9.5,
+    fontWeight: '900',
+    color: '#FFD700',
   },
   unoLogo3DText: {
     fontSize: 24,
