@@ -1,52 +1,111 @@
-import { LudoGameState, LudoToken, LudoMove, LudoPlayerColor } from './ludoTypes';
-import { LUDO_SAFE_CELLS, LUDO_WIN_POSITION, LUDO_START_POSITIONS } from './ludoConstants';
+import {
+  LudoGameState,
+  LudoPlayer,
+  LudoToken,
+  LudoPlayerColor,
+  LudoBoardType,
+} from './ludoTypes';
+import {
+  LUDO_4P_SAFE_CELLS,
+  LUDO_6P_SAFE_CELLS,
+  LUDO_4P_WIN_STEP,
+  LUDO_6P_WIN_STEP,
+} from './ludoConstants';
+import { LudoPath } from './ludoPath';
 
-// ─── Ludo Rules ───────────────────────────────────────────────────────────────
+// ─── Ludo Rules Engine ─────────────────────────────────────────────────────────
 
 export const LudoRules = {
-  canMoveToken: (token: LudoToken, diceValue: number): boolean => {
+  // Check if a token can move with the given dice value
+  canMoveToken: (
+    token: LudoToken,
+    diceValue: number,
+    boardType: LudoBoardType = '4player',
+  ): boolean => {
     if (token.status === 'finished') return false;
-    if (token.status === 'home') return diceValue === 6;
-    const newPos = token.position + diceValue;
-    return newPos <= LUDO_WIN_POSITION;
+
+    // To come out of home base, player must roll a 6
+    if (token.status === 'home') {
+      return diceValue === 6;
+    }
+
+    // On active track
+    const maxWinStep = boardType === '4player' ? LUDO_4P_WIN_STEP : LUDO_6P_WIN_STEP;
+    const newStep = token.stepCount + diceValue;
+
+    // Must reach win position with exact roll or less (cannot overshoot)
+    return newStep <= maxWinStep;
   },
 
-  canCapture: (
+  // Check if target position is a safe cell
+  isSafeCell: (
+    trackIndex: number,
+    boardType: LudoBoardType = '4player',
+  ): boolean => {
+    const safeCells = boardType === '4player' ? LUDO_4P_SAFE_CELLS : LUDO_6P_SAFE_CELLS;
+    return safeCells.includes(trackIndex);
+  },
+
+  // Check if a move results in capturing an opponent token
+  checkCapture: (
     movingToken: LudoToken,
-    targetPosition: number,
-    allTokens: LudoToken[],
-  ): { canCapture: boolean; capturedToken?: LudoToken } => {
-    if (LUDO_SAFE_CELLS.includes(targetPosition)) {
+    newStepCount: number,
+    color: LudoPlayerColor,
+    allPlayers: LudoPlayer[],
+    boardType: LudoBoardType = '4player',
+  ): { canCapture: boolean; capturedToken?: LudoToken; opponentPlayerId?: string } => {
+    const targetTrackIdx = LudoPath.getTrackIndex(newStepCount, color, boardType);
+    if (targetTrackIdx === null) {
+      return { canCapture: false }; // Home stretch is safe
+    }
+
+    // Safe cells cannot have captures
+    if (LudoRules.isSafeCell(targetTrackIdx, boardType)) {
       return { canCapture: false };
     }
 
-    const tokensAtTarget = allTokens.filter(
-      t => t.position === targetPosition && t.color !== movingToken.color && t.status === 'active',
-    );
+    // Check all opponent tokens on this track cell
+    for (const player of allPlayers) {
+      if (player.color === color) continue; // Cannot capture own token
 
-    if (tokensAtTarget.length === 1) {
-      return { canCapture: true, capturedToken: tokensAtTarget[0] };
+      for (const oppToken of player.tokens) {
+        if (oppToken.status !== 'active') continue;
+
+        const oppTrackIdx = LudoPath.getTrackIndex(oppToken.stepCount, oppToken.color, boardType);
+        if (oppTrackIdx === targetTrackIdx) {
+          return {
+            canCapture: true,
+            capturedToken: oppToken,
+            opponentPlayerId: player.id,
+          };
+        }
+      }
     }
+
     return { canCapture: false };
   },
 
-  calculateNewPosition: (token: LudoToken, diceValue: number, color: LudoPlayerColor): number => {
-    if (token.status === 'home') {
-      return LUDO_START_POSITIONS[color];
-    }
-    return token.position + diceValue;
+  // Find all valid playable tokens for a player with current dice value
+  getValidMovableTokens: (
+    player: LudoPlayer,
+    diceValue: number,
+    boardType: LudoBoardType = '4player',
+  ): LudoToken[] => {
+    if (!player || player.isFinished || diceValue <= 0) return [];
+    return player.tokens.filter((t) => LudoRules.canMoveToken(t, diceValue, boardType));
   },
 
-  hasAnyValidMove: (state: LudoGameState, playerId: string): boolean => {
-    const player = state.players.find(p => p.id === playerId);
-    if (!player || state.currentDiceValue === null) return false;
-    return player.tokens.some(t => LudoRules.canMoveToken(t, state.currentDiceValue!));
+  // Check if a player has any valid move
+  hasAnyValidMove: (
+    player: LudoPlayer,
+    diceValue: number,
+    boardType: LudoBoardType = '4player',
+  ): boolean => {
+    return LudoRules.getValidMovableTokens(player, diceValue, boardType).length > 0;
   },
 
-  isHomeStretch: (position: number, color: LudoPlayerColor): boolean => {
-    const stretchStart: Record<LudoPlayerColor, number> = {
-      red: 51, green: 12, blue: 25, yellow: 38,
-    };
-    return position > stretchStart[color];
+  // Check if player has finished all 4 tokens
+  isPlayerFinished: (player: LudoPlayer): boolean => {
+    return player.tokens.every((t) => t.status === 'finished');
   },
 };
