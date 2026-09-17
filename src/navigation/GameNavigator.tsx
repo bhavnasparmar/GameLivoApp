@@ -3,6 +3,11 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { GameStackParamList } from './types';
 
 import LudoHomeScreen from '../screens/games/ludo/LudoHome';
+import LudoModeScreen from '../screens/games/ludo/LudoMode';
+import LudoLobbyScreen from '../screens/games/ludo/LudoLobby';
+import LudoGameScreen from '../screens/games/ludo/LudoGame';
+import LudoResultScreen from '../screens/games/ludo/LudoResult';
+
 import ChessHomeScreen from '../screens/games/chess/ChessHome';
 import ChessModeScreen from '../screens/games/chess/ChessMode';
 import ChessLobbyScreen from '../screens/games/chess/ChessLobby';
@@ -39,8 +44,12 @@ export const GameNavigator: React.FC = () => {
       <Stack.Screen name="UnoGame" component={UnoGameScreen} />
       <Stack.Screen name="UnoResult" component={UnoResultScreen} />
 
-      {/* Ludo */}
+      {/* Ludo Screens */}
       <Stack.Screen name="LudoHome" component={LudoHomeScreen} />
+      <Stack.Screen name="LudoMode" component={LudoModeScreen} />
+      <Stack.Screen name="LudoLobby" component={LudoLobbyScreen} />
+      <Stack.Screen name="LudoGame" component={LudoGameScreen} />
+      <Stack.Screen name="LudoResult" component={LudoResultScreen} />
     </Stack.Navigator>
   );
 };

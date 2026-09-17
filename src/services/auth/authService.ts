@@ -148,6 +148,20 @@ export const authService = {
     return apiClient.post(API_ENDPOINTS.AUTH.RESET_PASSWORD, payload);
   },
 
+  refreshToken: async (): Promise<AuthTokens | null> => {
+    const refreshToken = await storageService.get<string>(STORAGE_KEYS.REFRESH_TOKEN);
+    if (!refreshToken) return null;
+
+    const data = await apiClient.post<any>(API_ENDPOINTS.AUTH.REFRESH_TOKEN, {
+      refreshToken,
+    });
+    const tokens = normalizeTokens(data);
+    if (tokens) {
+      await authService._persistTokens(tokens);
+    }
+    return tokens;
+  },
+
   logout: async (): Promise<void> => {
     try {
       await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT);

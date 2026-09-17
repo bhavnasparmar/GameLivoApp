@@ -312,6 +312,19 @@ export const useAuth = () => {
     [dispatch],
   );
 
+  // ── Refresh Token ──────────────────────────────────────────────────────────
+  const refreshToken = useCallback(async (): Promise<boolean> => {
+    try {
+      const tokens = await authService.refreshToken();
+      if (tokens) {
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }, []);
+
   // ── Logout ─────────────────────────────────────────────────────────────────
   const logout = useCallback(async () => {
     await authService.logout();
@@ -330,6 +343,7 @@ export const useAuth = () => {
     verifyOTP,
     forgotPassword,
     logout,
+    refreshToken,
     resetError,
     checkAuth,
   };
