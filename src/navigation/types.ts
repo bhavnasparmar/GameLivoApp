@@ -31,10 +31,10 @@ export type MainTabParamList = {
 export type GameStackParamList = {
   // Ludo
   LudoHome: undefined;
-  LudoMode: undefined;
-  LudoLobby: { lobbyId?: string; isHost: boolean };
-  LudoGame: { matchId: string };
-  LudoResult: { matchId: string };
+  LudoMode: { initialMode?: 'computer' | 'local' | 'rules' } | undefined;
+  LudoLobby: { lobbyId?: string; isHost?: boolean; mode?: 'private' | 'random'; playerCount?: number; timeSeconds?: number } | undefined;
+  LudoGame: { matchId?: string; mode?: any; difficulty?: any; playerCount?: number; timeSeconds?: number; players?: any[] };
+  LudoResult: { matchId?: string; gameState?: any; winnerId?: string };
 
   // Chess
   ChessHome: undefined;

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
@@ -870,9 +871,13 @@ export const UnoResultScreen: React.FC = () => {
                       </View>
 
                       {/* Avatar */}
-                      <Text style={styles.playerAvatar}>
-                        {player.avatar || (player.isBot ? '🤖' : '👩🏻')}
-                      </Text>
+                      {player.avatar && (player.avatar.startsWith('http') || player.avatar.startsWith('file:') || player.avatar.startsWith('data:')) ? (
+                        <Image source={{ uri: player.avatar }} style={styles.playerAvatarImage} />
+                      ) : (
+                        <Text style={styles.playerAvatar}>
+                          {player.avatar || (player.isBot ? '🤖' : '👩🏻')}
+                        </Text>
+                      )}
 
                       <View>
                         <View style={styles.nameRow}>
@@ -1331,6 +1336,11 @@ const styles = StyleSheet.create({
   },
   playerAvatar: {
     fontSize: 24,
+  },
+  playerAvatarImage: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
   },
   nameRow: {
     flexDirection: 'row',

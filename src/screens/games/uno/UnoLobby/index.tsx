@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -28,6 +28,7 @@ import { soundService } from '../../../../services/sound/soundService';
 import { vibrationService } from '../../../../services/vibration/vibrationService';
 import apiClient from '../../../../services/api/apiClient';
 import { API_ENDPOINTS } from '../../../../services/api/apiEndpoints';
+import { UNO_ROBOT_PROFILES } from '../../../../gameEngine/uno/unoConstants';
 
 const { width } = Dimensions.get('window');
 
@@ -49,19 +50,32 @@ const MOCK_ONLINE_PLAYERS = [
   { name: 'Aarav Sharma', avatar: '👨🏽‍🎓', rating: 1490, level: 18, country: '🇮🇳', ping: '22ms' },
 ];
 
-const STAKE_OPTIONS = [
-  { id: 'free', label: 'Free', fee: 0, prizeMultiplier: 0, tag: 'PRACTICE' },
-  { id: '100', label: '100 🪙', fee: 100, prizeMultiplier: 1, tag: 'CASUAL' },
-  { id: '500', label: '500 🪙', fee: 500, prizeMultiplier: 1, tag: 'POPULAR' },
-  { id: '1000', label: '1,000 🪙', fee: 1000, prizeMultiplier: 1, tag: 'HIGH ROLLER' },
-  { id: '5000', label: '5,000 🪙', fee: 5000, prizeMultiplier: 1, tag: 'CHAMPION' },
+export const TABLE_CAPACITY_OPTIONS = [
+  { count: 2, label: '2 Players', title: '1v1 Duel', icon: '⚔️', desc: 'Fast & Intense', color: '#E74C3C' },
+  { count: 3, label: '3 Players', title: '3-Way Trio', icon: '⚡', desc: 'Triangle Clash', color: '#E67E22' },
+  { count: 4, label: '4 Players', title: 'Classic 4P', icon: '🎯', desc: 'Official Match', color: '#F1C40F' },
+  { count: 5, label: '5 Players', title: 'Squad 5P', icon: '🌟', desc: '5-Way Battle', color: '#2ECC71' },
+  { count: 6, label: '6 Players', title: 'Hexa 6P', icon: '🔥', desc: 'Multi-Side Action', color: '#1ABC9C' },
+  { count: 7, label: '7 Players', title: 'Epic 7P', icon: '💥', desc: 'Party Clash', color: '#3498DB' },
+  { count: 8, label: '8 Players', title: 'Party Arena', icon: '👑', desc: 'Max Uno Mayhem', color: '#9B59B6' },
 ];
 
-const TABLE_SIZES = [
-  { count: 2, label: '2 Players', title: '1v1 Duel', icon: '⚔️', desc: 'Fast & Intense' },
-  { count: 4, label: '4 Players', title: 'Classic Table', icon: '🎯', desc: 'Official Match' },
-  { count: 8, label: '8 Players', title: 'Party Arena', icon: '🔥', desc: 'Max Uno Chaos' },
+export const TURN_TIME_OPTIONS = [
+  { seconds: 10, label: '10s Blitz', tag: 'Fast' },
+  { seconds: 15, label: '15s Standard', tag: 'Recommended' },
+  { seconds: 30, label: '30s Relaxed', tag: 'Casual' },
 ];
+
+interface LobbyRoomPlayer {
+  id: string;
+  name: string;
+  avatar: string;
+  isHost: boolean;
+  isBot: boolean;
+  isReady: boolean;
+  rating?: number;
+  ping?: string;
+}
 
 export const UnoLobbyScreen: React.FC = () => {
   const insets = useSafeAreaInsets();
@@ -82,7 +96,7 @@ export const UnoLobbyScreen: React.FC = () => {
 
   // Matchmaking / Setup Options
   const [selectedTableSize, setSelectedTableSize] = useState<number>(4);
-  const [selectedStake, setSelectedStake] = useState<typeof STAKE_OPTIONS[0]>(STAKE_OPTIONS[2]); // default 500 coins
+  const [selectedTurnTime, setSelectedTurnTime] = useState<typeof TURN_TIME_OPTIONS[0]>(TURN_TIME_OPTIONS[1]); // default 15s
 
   // Quick Match State
   const [isSearching, setIsSearching] = useState<boolean>(false);
@@ -94,10 +108,11 @@ export const UnoLobbyScreen: React.FC = () => {
 
   // Private Mode State
   const [privateTab, setPrivateTab] = useState<'create' | 'join'>(isHostParam ? 'create' : 'join');
+  const [isRoomCreated, setIsRoomCreated] = useState<boolean>(false);
   const [roomCode, setRoomCode] = useState<string>(() => {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let res = '';
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 4; i++) {
       res += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return `UNO-${res}`;
@@ -107,15 +122,33 @@ export const UnoLobbyScreen: React.FC = () => {
   const [invitedFriends, setInvitedFriends] = useState<Set<string>>(new Set());
   const [dbUsers, setDbUsers] = useState<any[]>([]);
 
+  // Live Room Players List (Host + Joined Players / Bots)
+  const [roomPlayers, setRoomPlayers] = useState<LobbyRoomPlayer[]>([
+    {
+      id: currentUserId,
+      name: playerName,
+      avatar: userAvatar,
+      isHost: true,
+      isBot: false,
+      isReady: true,
+      rating: userRating,
+      ping: '20ms',
+    },
+  ]);
+
+  // Toast State
+  const [toastMsg, setToastMsg] = useState<string>('');
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(''), 2200);
+  };
+
   // Animations
   const pulseAnim1 = useRef(new Animated.Value(0)).current;
   const pulseAnim2 = useRef(new Animated.Value(0)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
   const matchPopScale = useRef(new Animated.Value(0.7)).current;
-  const matchPopOpacity = useRef(new Animated.Value(0)).current;
-
-  // Calculate Prize Pool
-  const prizePool = selectedStake.fee > 0 ? selectedStake.fee * selectedTableSize : 200;
+  const matchPopOpacity = useRef(new Animated.Value(0.7)).current;
 
   // Fetch real registered users from backend database (Leaderboard, Friends, Suggestions)
   useEffect(() => {
@@ -149,15 +182,24 @@ export const UnoLobbyScreen: React.FC = () => {
         }
 
         const valid = rawList
-          .filter((u: any) => u && (u.id || u._id || u.userId) && (u.id !== currentUserId && u._id !== currentUserId && u.userId !== currentUserId && u.name !== playerName && u.username !== playerName))
+          .filter(
+            (u: any) =>
+              u &&
+              (u.id || u._id || u.userId) &&
+              u.id !== currentUserId &&
+              u._id !== currentUserId &&
+              u.userId !== currentUserId &&
+              u.name !== playerName &&
+              u.username !== playerName,
+          )
           .map((u: any, idx: number) => ({
             id: u.id || u._id || u.userId || `db_${idx + 1}`,
             name: u.name || u.username || `Player ${idx + 1}`,
             avatar: u.avatar || '😎',
-            rating: typeof u.rank === 'number' ? (u.rank > 200 ? u.rank : 1400 + u.rank * 10) : (u.rating || 1450),
+            rating: typeof u.rank === 'number' ? (u.rank > 200 ? u.rank : 1400 + u.rank * 10) : u.rating || 1450,
             level: typeof u.level === 'number' ? u.level : (idx % 15) + 5,
             country: u.country || '🌐',
-            ping: `${18 + (idx * 3) % 24}ms`,
+            ping: `${18 + ((idx * 3) % 24)}ms`,
             isBot: false,
           }));
 
@@ -175,17 +217,20 @@ export const UnoLobbyScreen: React.FC = () => {
   // Fetch Friends List for Private Room
   useEffect(() => {
     if (mode === 'private') {
-      friendsService.getFriends().then((res) => {
-        if (res && res.length > 0) {
-          setFriendsList(res);
-        }
-      }).catch(() => {});
+      friendsService
+        .getFriends()
+        .then((res) => {
+          if (res && res.length > 0) {
+            setFriendsList(res);
+          }
+        })
+        .catch(() => {});
     }
   }, [mode]);
 
   // Radar Animation Loop
   useEffect(() => {
-    if (!isSearching) return;
+    if (!isSearching && !isRoomCreated) return;
 
     const createPulse = (anim: Animated.Value, delay = 0) => {
       return Animated.loop(
@@ -227,7 +272,7 @@ export const UnoLobbyScreen: React.FC = () => {
       pulse2.stop();
       rotation.stop();
     };
-  }, [isSearching, pulseAnim1, pulseAnim2, rotateAnim]);
+  }, [isSearching, isRoomCreated, pulseAnim1, pulseAnim2, rotateAnim]);
 
   // Status message cycler & elapsed timer for Quick Match
   useEffect(() => {
@@ -247,7 +292,7 @@ export const UnoLobbyScreen: React.FC = () => {
     };
   }, [isSearching, isMatchReady]);
 
-  // Handle Socket Matchmaking & Lobby Events
+  // Handle Socket Events for Quick Match and Private Lobby
   useEffect(() => {
     if (!socketService.isConnected()) {
       socketService.connect();
@@ -257,7 +302,8 @@ export const UnoLobbyScreen: React.FC = () => {
       socketService.emit(SOCKET_EVENTS.MATCH_QUEUE_JOIN, {
         gameId: 'uno',
         playerCount: selectedTableSize,
-        entryFee: selectedStake.fee,
+        entryFee: 0,
+        timeSeconds: selectedTurnTime.seconds,
         userId: currentUserId,
         username: playerName,
         avatar: userAvatar,
@@ -269,16 +315,18 @@ export const UnoLobbyScreen: React.FC = () => {
       if (data && data.players && data.players.length > 0) {
         const others = data.players.filter((p: any) => p.id !== currentUserId && p.userId !== currentUserId);
         if (others.length > 0) {
-          setMatchedOpponents(others.map((p: any, idx: number) => ({
-            id: p.id || p.userId || `opp_${idx + 1}`,
-            name: p.name || p.username || `Player ${idx + 2}`,
-            avatar: p.avatar || '😎',
-            rating: p.rating || 1450,
-            level: p.level || 12,
-            country: p.country || '🌐',
-            ping: '28ms',
-            isBot: Boolean(p.isBot),
-          })));
+          setMatchedOpponents(
+            others.map((p: any, idx: number) => ({
+              id: p.id || p.userId || `opp_${idx + 1}`,
+              name: p.name || p.username || `Player ${idx + 2}`,
+              avatar: p.avatar || '😎',
+              rating: p.rating || 1450,
+              level: p.level || 12,
+              country: p.country || '🌐',
+              ping: '28ms',
+              isBot: Boolean(p.isBot),
+            })),
+          );
           setIsMatchReady(true);
           soundService.play('notification');
           vibrationService.vibrateSuccess();
@@ -288,20 +336,36 @@ export const UnoLobbyScreen: React.FC = () => {
 
     const handleLobbyUpdate = (lobby: any) => {
       if (lobby && lobby.players) {
-        console.log('[Uno Socket] Lobby updated:', lobby);
+        console.log('[Uno Socket] Lobby update received:', lobby);
+        if (Array.isArray(lobby.players) && lobby.players.length > 0) {
+          const mapped: LobbyRoomPlayer[] = lobby.players.map((p: any) => ({
+            id: p.userId || p.id,
+            name: p.username || p.name,
+            avatar: p.avatar || '😎',
+            isHost: Boolean(p.isHost),
+            isBot: Boolean(p.isBot),
+            isReady: Boolean(p.isReady),
+            rating: p.rating || 1450,
+            ping: '24ms',
+          }));
+          setRoomPlayers(mapped);
+        }
       }
     };
 
     const handleServerGameStart = (data: any) => {
+      soundService.play('card_flip');
+      vibrationService.vibrateSuccess();
       navigation.replace(ROUTES.UNO_GAME, {
         matchId: data.matchId || `uno_room_${roomCode}`,
         mode: 'private',
         difficulty: 'medium',
         playerCount: selectedTableSize,
-        stake: selectedStake.fee,
-        prizePool,
-        players: data.players || undefined,
+        stake: 0,
+        prizePool: 0,
+        players: data.players || roomPlayers,
         player1Name: playerName,
+        userAvatar,
       });
     };
 
@@ -321,17 +385,17 @@ export const UnoLobbyScreen: React.FC = () => {
     mode,
     isSearching,
     selectedTableSize,
-    selectedStake.fee,
+    selectedTurnTime.seconds,
     currentUserId,
     playerName,
     userAvatar,
     userRating,
     navigation,
     roomCode,
-    prizePool,
+    roomPlayers,
   ]);
 
-  // Handle Quick Match Database Users Matching Flow
+  // Quick Match Real & Online Opponents Matching Simulation
   useEffect(() => {
     if (!isSearching || isMatchReady) return;
 
@@ -345,12 +409,10 @@ export const UnoLobbyScreen: React.FC = () => {
 
     const shuffledPool = [...sourcePool].sort(() => 0.5 - Math.random());
     const matched: any[] = [];
-
-    // Stagger discovery of opponents
     const timers: Array<ReturnType<typeof setTimeout>> = [];
 
     for (let i = 0; i < requiredOpponents; i++) {
-      const delay = (i + 1) * 750 + Math.random() * 400;
+      const delay = (i + 1) * 750 + Math.random() * 350;
       const t = setTimeout(() => {
         const opp = shuffledPool[i % shuffledPool.length];
         matched.push({
@@ -360,14 +422,13 @@ export const UnoLobbyScreen: React.FC = () => {
           rating: opp.rating || 1450,
           level: opp.level || 12,
           country: opp.country || '🌐',
-          ping: opp.ping || '24ms',
+          ping: '24ms',
           isBot: false,
         });
         setMatchedOpponents([...matched]);
         soundService.play('button_tap');
         vibrationService.vibrateTap();
 
-        // If all opponents found
         if (matched.length === requiredOpponents) {
           setIsMatchReady(true);
           soundService.play('notification');
@@ -394,9 +455,9 @@ export const UnoLobbyScreen: React.FC = () => {
     return () => {
       timers.forEach((t) => clearTimeout(t));
     };
-  }, [isSearching, selectedTableSize, isMatchReady, matchPopScale, matchPopOpacity]);
+  }, [isSearching, selectedTableSize, isMatchReady, matchPopScale, matchPopOpacity, dbUsers]);
 
-  // Match Found Countdown & Navigation Trigger
+  // Quick Match Countdown & Launch
   useEffect(() => {
     if (!isMatchReady) return;
 
@@ -407,7 +468,6 @@ export const UnoLobbyScreen: React.FC = () => {
       return () => clearTimeout(cd);
     }
 
-    // Build the final players list
     const finalPlayers = [
       {
         id: currentUserId,
@@ -420,7 +480,7 @@ export const UnoLobbyScreen: React.FC = () => {
         id: opp.id,
         name: opp.name,
         avatar: opp.avatar,
-        isBot: true, // Controlled smoothly by UnoBot engine
+        isBot: true,
       })),
     ];
 
@@ -429,10 +489,11 @@ export const UnoLobbyScreen: React.FC = () => {
       mode: 'random',
       difficulty: 'medium',
       playerCount: selectedTableSize,
-      stake: selectedStake.fee,
-      prizePool,
+      stake: 0,
+      prizePool: 0,
       players: finalPlayers,
       player1Name: playerName,
+      userAvatar,
     });
   }, [
     isMatchReady,
@@ -443,99 +504,188 @@ export const UnoLobbyScreen: React.FC = () => {
     matchedOpponents,
     navigation,
     selectedTableSize,
-    selectedStake.fee,
-    prizePool,
   ]);
 
-  const handleStartSearching = () => {
-    if (selectedStake.fee > userCoins) {
+  // ─── Play with Friends Actions ───
+
+  // Host creates room
+  const handleHostCreateRoom = () => {
+    soundService.play('button_tap');
+    vibrationService.vibrateTap();
+
+    // Reset room players to host only
+    const hostPlayer: LobbyRoomPlayer = {
+      id: currentUserId,
+      name: playerName,
+      avatar: userAvatar,
+      isHost: true,
+      isBot: false,
+      isReady: true,
+      rating: userRating,
+      ping: '16ms',
+    };
+    setRoomPlayers([hostPlayer]);
+    setIsRoomCreated(true);
+
+    // Emit lobby create event to backend socket
+    socketService.emit(SOCKET_EVENTS.LOBBY_CREATE, {
+      gameId: 'uno',
+      code: roomCode,
+      maxPlayers: selectedTableSize,
+      entryFee: 0,
+      timeSeconds: selectedTurnTime.seconds,
+      isPrivate: true,
+    });
+
+    showToast(`Room #${roomCode} Created!`);
+  };
+
+  // Add a bot into empty slot
+  const handleAddBotSlot = () => {
+    if (roomPlayers.length >= selectedTableSize) {
+      Alert.alert('Room Full', `This room has reached maximum capacity of ${selectedTableSize} players.`);
+      return;
+    }
+
+    const availableBots = UNO_ROBOT_PROFILES.filter(
+      (b) => !roomPlayers.some((p) => p.name.toLowerCase() === b.name.toLowerCase()),
+    );
+
+    const botToAdd = availableBots[0] || UNO_ROBOT_PROFILES[0];
+    const newBotPlayer: LobbyRoomPlayer = {
+      id: `bot_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      name: `${botToAdd.name} (AI)`,
+      avatar: botToAdd.avatar,
+      isHost: false,
+      isBot: true,
+      isReady: true,
+      rating: 1450,
+      ping: '12ms',
+    };
+
+    soundService.play('button_tap');
+    vibrationService.vibrateTap();
+    setRoomPlayers((prev) => [...prev, newBotPlayer]);
+    showToast(`Added ${botToAdd.name} to room`);
+  };
+
+  // Fill all remaining empty slots with bots
+  const handleFillAllWithBots = () => {
+    const slotsNeeded = selectedTableSize - roomPlayers.length;
+    if (slotsNeeded <= 0) return;
+
+    soundService.play('button_tap');
+    vibrationService.vibrateTap();
+
+    const currentNames = new Set(roomPlayers.map((p) => p.name.toLowerCase()));
+    const botsPool = UNO_ROBOT_PROFILES.filter((b) => !currentNames.has(b.name.toLowerCase()));
+
+    const newBots: LobbyRoomPlayer[] = [];
+    for (let i = 0; i < slotsNeeded; i++) {
+      const b = botsPool[i % botsPool.length];
+      newBots.push({
+        id: `bot_${Date.now()}_${i}`,
+        name: `${b.name} (AI)`,
+        avatar: b.avatar,
+        isHost: false,
+        isBot: true,
+        isReady: true,
+        rating: 1420 + i * 20,
+        ping: '15ms',
+      });
+    }
+
+    setRoomPlayers((prev) => [...prev, ...newBots]);
+    showToast(`Filled ${slotsNeeded} seats with AI Bots!`);
+  };
+
+  // Remove a player/bot from room
+  const handleRemovePlayer = (playerId: string) => {
+    if (playerId === currentUserId) return; // Cannot remove self
+    setRoomPlayers((prev) => prev.filter((p) => p.id !== playerId));
+    socketService.emit(SOCKET_EVENTS.LOBBY_KICK_PLAYER, { targetUserId: playerId });
+    showToast('Player removed from room');
+  };
+
+  // Copy Room Code
+  const handleCopyRoomCode = () => {
+    Clipboard.setString(roomCode);
+    soundService.play('button_tap');
+    showToast(`Code ${roomCode} copied to clipboard! 📋`);
+  };
+
+  // Share Room Code
+  const handleShareRoomCode = async () => {
+    try {
+      soundService.play('button_tap');
+      await Share.share({
+        message: `🔥 Join my UNO Match on GameLivo!\nRoom Code: ${roomCode}\nCapacity: ${selectedTableSize} Players\nLet's play and shout UNO! 🂡`,
+      });
+    } catch (e) {}
+  };
+
+  // Invite Friend
+  const handleInviteFriend = (friend: Friend) => {
+    setInvitedFriends((prev) => new Set(prev).add(friend.id));
+    soundService.play('notification');
+    vibrationService.vibrateTap();
+
+    socketService.emit(SOCKET_EVENTS.FRIEND_GAME_INVITE, {
+      friendUserId: friend.id,
+      gameId: 'uno',
+      roomCode,
+      timeSeconds: selectedTurnTime.seconds,
+    });
+
+    showToast(`Invitation sent to ${friend.name || friend.username}! ✉️`);
+  };
+
+  // Host starts private room match
+  const handleStartPrivateRoomMatch = () => {
+    if (roomPlayers.length < 2) {
       Alert.alert(
-        'Insufficient Coins',
-        `You need at least ${selectedStake.fee} coins to enter this table. You currently have ${userCoins} coins.`,
+        'Need More Players',
+        `At least 2 players are required to start the match. You can tap "+ Add Bot" to fill empty seats with AI.`,
         [
-          { text: 'Choose Free Table', onPress: () => setSelectedStake(STAKE_OPTIONS[0]) },
+          { text: '+ Add Bot Now', onPress: handleAddBotSlot },
           { text: 'OK', style: 'cancel' },
         ],
       );
       return;
     }
 
-    setMatchedOpponents([]);
-    setIsMatchReady(false);
-    setElapsedSeconds(0);
-    setMatchCountdown(3);
-    setIsSearching(true);
-    soundService.play('button_tap');
-    vibrationService.vibrateTap();
-  };
+    soundService.play('card_flip');
+    vibrationService.vibrateSuccess();
 
-  const handleCancelSearch = () => {
-    socketService.emit(SOCKET_EVENTS.MATCH_QUEUE_LEAVE, { gameId: 'uno' });
-    setIsSearching(false);
-    setIsMatchReady(false);
-    setMatchedOpponents([]);
-    setElapsedSeconds(0);
-    soundService.play('button_tap');
-    vibrationService.vibrateTap();
-  };
-
-  const handleCopyRoomCode = () => {
-    Clipboard.setString(roomCode);
-    Alert.alert('Room Code Copied! 📋', `Code ${roomCode} copied to clipboard.`);
-  };
-
-  const handleShareRoomCode = async () => {
-    try {
-      await Share.share({
-        message: `🔥 Join my UNO Match on GameLivo!\nRoom Code: ${roomCode}\nPlay with me and shout UNO! 🂡`,
-      });
-    } catch (e) {}
-  };
-
-  const handleInviteFriend = (friend: Friend) => {
-    setInvitedFriends((prev) => new Set(prev).add(friend.id));
-    socketService.emit(SOCKET_EVENTS.FRIEND_GAME_INVITE, {
-      friendUserId: friend.id,
-      gameId: 'uno',
-      roomCode,
-      timeSeconds: 300,
-    });
-    Alert.alert('Invite Sent! ✉️', `Invitation sent to ${friend.name || friend.username} for room ${roomCode}`);
-  };
-
-  const handleStartPrivateRoomMatch = () => {
     socketService.emit(SOCKET_EVENTS.LOBBY_START_GAME, {
       roomCode,
-      timeSeconds: 300,
+      timeSeconds: selectedTurnTime.seconds,
+      players: roomPlayers,
     });
-
-    const finalPlayers = [
-      { id: currentUserId, name: playerName, avatar: userAvatar, isBot: false, isHost: true },
-      { id: 'friend_2', name: 'Friend 2', avatar: '🦁', isBot: true },
-      ...(selectedTableSize >= 4 ? [
-        { id: 'friend_3', name: 'Friend 3', avatar: '🐼', isBot: true },
-        { id: 'friend_4', name: 'Friend 4', avatar: '🦊', isBot: true },
-      ] : []),
-    ];
 
     navigation.replace(ROUTES.UNO_GAME, {
       matchId: `uno_room_${roomCode}`,
       mode: 'private',
       difficulty: 'medium',
       playerCount: selectedTableSize,
-      stake: selectedStake.fee,
-      prizePool,
-      players: finalPlayers,
+      stake: 0,
+      prizePool: 0,
+      players: roomPlayers,
       player1Name: playerName,
+      userAvatar,
     });
   };
 
+  // Join Room by Code
   const handleJoinByCode = () => {
     const clean = inputJoinCode.trim().toUpperCase();
     if (clean.length < 4) {
-      Alert.alert('Invalid Code', 'Please enter a valid room code (e.g. UNO-8492).');
+      Alert.alert('Invalid Code', 'Please enter a valid 4-8 character room code (e.g. UNO-8492).');
       return;
     }
+
+    soundService.play('button_tap');
+    vibrationService.vibrateTap();
 
     socketService.emit(SOCKET_EVENTS.LOBBY_JOIN, {
       code: clean,
@@ -550,7 +700,19 @@ export const UnoLobbyScreen: React.FC = () => {
       stake: 0,
       prizePool: 0,
       player1Name: playerName,
+      userAvatar,
     });
+  };
+
+  const handlePasteCode = async () => {
+    try {
+      const text = await Clipboard.getString();
+      if (text) {
+        const clean = text.trim().toUpperCase();
+        setInputJoinCode(clean);
+        showToast('Pasted code from clipboard');
+      }
+    } catch (e) {}
   };
 
   const formatElapsed = (sec: number) => {
@@ -568,7 +730,7 @@ export const UnoLobbyScreen: React.FC = () => {
     <View style={[styles.container, { backgroundColor: isDark ? '#060D09' : '#F0F7F2' }]}>
       <StatusBar barStyle="light-content" />
 
-      {/* Top App Bar */}
+      {/* ─── Top App Bar ─── */}
       <LinearGradient
         colors={['#C0392B', '#922B21', '#641E16']}
         style={[styles.appBar, { paddingTop: Math.max(insets.top + 8, 26) }]}
@@ -579,7 +741,10 @@ export const UnoLobbyScreen: React.FC = () => {
             style={styles.backBtn}
             onPress={() => {
               if (isSearching) {
-                handleCancelSearch();
+                socketService.emit(SOCKET_EVENTS.MATCH_QUEUE_LEAVE, { gameId: 'uno' });
+                setIsSearching(false);
+              } else if (isRoomCreated) {
+                setIsRoomCreated(false);
               } else {
                 navigation.goBack();
               }
@@ -590,7 +755,11 @@ export const UnoLobbyScreen: React.FC = () => {
 
           <View style={styles.titleWrap}>
             <Text style={styles.appBarTitle}>
-              {mode === 'random' ? '⚡ QUICK MATCH' : '🔒 PLAY WITH FRIENDS'}
+              {mode === 'random'
+                ? '⚡ QUICK MATCH'
+                : isRoomCreated
+                ? `👑 ROOM #${roomCode}`
+                : '🔒 PLAY WITH FRIENDS'}
             </Text>
           </View>
 
@@ -600,8 +769,8 @@ export const UnoLobbyScreen: React.FC = () => {
           </View>
         </View>
 
-        {/* Sub-tab Switcher for Private Mode */}
-        {mode === 'private' && (
+        {/* Sub-tab Switcher for Private Mode (When room is not yet created) */}
+        {mode === 'private' && !isRoomCreated && (
           <View style={styles.tabPillWrap}>
             <TouchableOpacity
               activeOpacity={0.8}
@@ -609,7 +778,7 @@ export const UnoLobbyScreen: React.FC = () => {
               onPress={() => setPrivateTab('create')}
             >
               <Text style={[styles.tabText, privateTab === 'create' && styles.activeTabText]}>
-                👑 Create Room
+                👑 Host Room
               </Text>
             </TouchableOpacity>
 
@@ -626,20 +795,27 @@ export const UnoLobbyScreen: React.FC = () => {
         )}
       </LinearGradient>
 
+      {/* Floating Toast Notification */}
+      {toastMsg ? (
+        <View style={styles.toastContainer} pointerEvents="none">
+          <LinearGradient colors={['#2D3436', '#1E272E']} style={styles.toastGradient}>
+            <Text style={styles.toastText}>{toastMsg}</Text>
+          </LinearGradient>
+        </View>
+      ) : null}
+
       <ScrollView
         contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 40 }]}
         showsVerticalScrollIndicator={false}
       >
         {mode === 'random' ? (
-          /* ─── QUICK MATCH VIEW ─── */
+          /* ════════════════════ QUICK MATCH VIEW ════════════════════ */
           isSearching ? (
-            /* ACTIVE MATCHMAKING RADAR & LIVE QUEUE */
+            /* ACTIVE RADAR MATCHMAKING */
             <View style={styles.searchingContainer}>
-              {/* Radar Area */}
               <View style={styles.radarSection}>
                 {!isMatchReady ? (
                   <View style={styles.radarWrapper}>
-                    {/* Expanding Pulse Ring 1 */}
                     <Animated.View
                       style={[
                         styles.pulseRing,
@@ -661,7 +837,6 @@ export const UnoLobbyScreen: React.FC = () => {
                       ]}
                     />
 
-                    {/* Expanding Pulse Ring 2 */}
                     <Animated.View
                       style={[
                         styles.pulseRing,
@@ -683,7 +858,6 @@ export const UnoLobbyScreen: React.FC = () => {
                       ]}
                     />
 
-                    {/* Orbiting Multi-Colored Uno Cards */}
                     <Animated.View style={[styles.orbitCircle, { transform: [{ rotate: spin }] }]}>
                       <View style={[styles.orbitBadge, { top: -14, backgroundColor: '#E74C3C' }]}>
                         <Text style={styles.orbitBadgeGlyph}>🂡</Text>
@@ -699,11 +873,7 @@ export const UnoLobbyScreen: React.FC = () => {
                       </View>
                     </Animated.View>
 
-                    {/* Center Radar Hub */}
-                    <LinearGradient
-                      colors={['#E74C3C', '#C0392B', '#781515']}
-                      style={styles.centerRadarHub}
-                    >
+                    <LinearGradient colors={['#E74C3C', '#C0392B', '#781515']} style={styles.centerRadarHub}>
                       <Text style={styles.centerRadarIcon}>⚡</Text>
                     </LinearGradient>
                   </View>
@@ -718,10 +888,7 @@ export const UnoLobbyScreen: React.FC = () => {
                       },
                     ]}
                   >
-                    <LinearGradient
-                      colors={['#27AE60', '#1E8449', '#145A32']}
-                      style={styles.matchFoundGradient}
-                    >
+                    <LinearGradient colors={['#27AE60', '#1E8449', '#145A32']} style={styles.matchFoundGradient}>
                       <Text style={styles.matchFoundEmblem}>🎉</Text>
                       <Text style={styles.matchFoundHeading}>ALL PLAYERS FOUND!</Text>
                       <Text style={styles.matchFoundSub}>Dealing cards in {matchCountdown}s...</Text>
@@ -729,7 +896,6 @@ export const UnoLobbyScreen: React.FC = () => {
                   </Animated.View>
                 )}
 
-                {/* Live Match Timer & Status */}
                 <View style={styles.statusBox}>
                   {!isMatchReady && (
                     <View style={styles.timerBadge}>
@@ -745,14 +911,11 @@ export const UnoLobbyScreen: React.FC = () => {
               {/* Table Info Header */}
               <View style={styles.tableInfoStrip}>
                 <Text style={styles.tableInfoText}>
-                  {selectedTableSize}-Player Table · {selectedStake.label} Stake ·{' '}
-                  <Text style={{ color: '#FFD700', fontWeight: '900' }}>
-                    🏆 {prizePool.toLocaleString()} Prize
-                  </Text>
+                  {selectedTableSize}-Player Tournament Arena · Turn Timer: {selectedTurnTime.label}
                 </Text>
               </View>
 
-              {/* Player Slots Section */}
+              {/* Player Slots */}
               <View style={styles.slotsContainer}>
                 {/* Slot 1: You */}
                 <View
@@ -835,75 +998,72 @@ export const UnoLobbyScreen: React.FC = () => {
                 })}
               </View>
 
-              {/* Cancel Button */}
               {!isMatchReady && (
                 <TouchableOpacity
                   activeOpacity={0.85}
                   style={styles.cancelBtn}
-                  onPress={handleCancelSearch}
+                  onPress={() => {
+                    socketService.emit(SOCKET_EVENTS.MATCH_QUEUE_LEAVE, { gameId: 'uno' });
+                    setIsSearching(false);
+                  }}
                 >
                   <Text style={styles.cancelBtnText}>✕ CANCEL SEARCH</Text>
                 </TouchableOpacity>
               )}
             </View>
           ) : (
-            /* QUICK MATCH SETUP / LOBBY SELECTION */
+            /* QUICK MATCH SETUP SELECTION */
             <View style={styles.setupContainer}>
-              {/* Hero Banner */}
-              <LinearGradient
-                colors={['#E74C3C', '#C0392B', '#922B21']}
-                style={styles.heroCard}
-              >
+              <LinearGradient colors={['#E74C3C', '#C0392B', '#922B21']} style={styles.heroCard}>
                 <View style={styles.heroLeft}>
                   <View style={styles.heroBadge}>
                     <Text style={styles.heroBadgeText}>SPEED 3-CARD UNO</Text>
                   </View>
                   <Text style={styles.heroTitle}>Live Online Quick Match</Text>
                   <Text style={styles.heroSub}>
-                    Instant matchmaking with real players worldwide. Choose table size & coins stake!
+                    Instant matchmaking with real champions worldwide. Select table size & jump right in!
                   </Text>
                 </View>
                 <Text style={styles.heroIcon}>⚡</Text>
               </LinearGradient>
 
-              {/* Section: Select Table Size */}
+              {/* Table Size (2 to 8 Players) */}
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>SELECT TABLE SIZE</Text>
+                <Text style={styles.sectionTitle}>SELECT TABLE CAPACITY (2 - 8 PLAYERS)</Text>
               </View>
 
-              <View style={styles.tableSizesRow}>
-                {TABLE_SIZES.map((size) => {
-                  const isSelected = selectedTableSize === size.count;
+              <View style={styles.capacityGrid}>
+                {TABLE_CAPACITY_OPTIONS.map((cap) => {
+                  const isSelected = selectedTableSize === cap.count;
                   return (
                     <TouchableOpacity
-                      key={size.count}
+                      key={cap.count}
                       activeOpacity={0.8}
                       style={[
-                        styles.sizeCard,
+                        styles.capacityCard,
                         {
                           backgroundColor: isDark ? '#101C14' : '#FFFFFF',
-                          borderColor: isSelected ? '#E74C3C' : isDark ? 'rgba(255,255,255,0.08)' : '#E0ECE4',
+                          borderColor: isSelected ? cap.color : isDark ? 'rgba(255,255,255,0.08)' : '#E0ECE4',
                         },
-                        isSelected && styles.sizeCardActive,
+                        isSelected && { borderWidth: 2, borderColor: cap.color },
                       ]}
-                      onPress={() => setSelectedTableSize(size.count)}
+                      onPress={() => setSelectedTableSize(cap.count)}
                     >
-                      <Text style={styles.sizeIcon}>{size.icon}</Text>
+                      <Text style={styles.capacityIcon}>{cap.icon}</Text>
                       <Text
                         style={[
-                          styles.sizeTitle,
-                          { color: isSelected ? '#E74C3C' : isDark ? '#FFF' : '#1A2318' },
+                          styles.capacityCountText,
+                          { color: isSelected ? cap.color : isDark ? '#FFF' : '#1A2318' },
                         ]}
                       >
-                        {size.title}
+                        {cap.title}
                       </Text>
-                      <Text style={[styles.sizeDesc, { color: isDark ? '#7A9182' : '#8CA093' }]}>
-                        {size.desc}
+                      <Text style={[styles.capacityDescText, { color: isDark ? '#7A9182' : '#8CA093' }]}>
+                        {cap.desc}
                       </Text>
-
                       {isSelected && (
-                        <View style={styles.activeCheckPill}>
-                          <Text style={styles.activeCheckText}>SELECTED</Text>
+                        <View style={[styles.activePill, { backgroundColor: cap.color }]}>
+                          <Text style={styles.activePillText}>SELECTED</Text>
                         </View>
                       )}
                     </TouchableOpacity>
@@ -911,239 +1071,493 @@ export const UnoLobbyScreen: React.FC = () => {
                 })}
               </View>
 
-              {/* Section: Entry Stake & Prize Pool */}
+              {/* Turn Timer Selector */}
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>SELECT ENTRY STAKE</Text>
-                {selectedStake.fee > 0 && (
-                  <View style={styles.prizePoolTag}>
-                    <Text style={styles.prizePoolTagText}>
-                      WINNER PRIZE: {prizePool.toLocaleString()} 🪙
-                    </Text>
-                  </View>
-                )}
+                <Text style={styles.sectionTitle}>TURN TIMER</Text>
               </View>
 
-              <View style={styles.stakeGrid}>
-                {STAKE_OPTIONS.map((stake) => {
-                  const isSelected = selectedStake.id === stake.id;
-                  const isAffordable = stake.fee <= userCoins;
-
+              <View style={styles.timerRow}>
+                {TURN_TIME_OPTIONS.map((t) => {
+                  const isSelected = selectedTurnTime.seconds === t.seconds;
                   return (
                     <TouchableOpacity
-                      key={stake.id}
+                      key={t.seconds}
                       activeOpacity={0.8}
                       style={[
-                        styles.stakeCard,
+                        styles.timerCard,
                         {
                           backgroundColor: isDark ? '#101C14' : '#FFFFFF',
-                          borderColor: isSelected ? '#F1C40F' : isDark ? 'rgba(255,255,255,0.08)' : '#E0ECE4',
-                          opacity: isAffordable ? 1 : 0.6,
+                          borderColor: isSelected ? '#E74C3C' : isDark ? 'rgba(255,255,255,0.08)' : '#E0ECE4',
                         },
-                        isSelected && styles.stakeCardActive,
+                        isSelected && { borderColor: '#E74C3C', borderWidth: 2 },
                       ]}
-                      onPress={() => setSelectedStake(stake)}
+                      onPress={() => setSelectedTurnTime(t)}
                     >
-                      <View style={styles.stakeTopRow}>
-                        <Text style={styles.stakeBadgeText}>{stake.tag}</Text>
-                        {isSelected && <Text style={{ color: '#F1C40F' }}>✓</Text>}
-                      </View>
                       <Text
                         style={[
-                          styles.stakeLabel,
-                          { color: isSelected ? '#F1C40F' : isDark ? '#FFF' : '#1A2318' },
+                          styles.timerLabelText,
+                          { color: isSelected ? '#E74C3C' : isDark ? '#FFF' : '#1A2318' },
                         ]}
                       >
-                        {stake.label}
+                        {t.label}
                       </Text>
-                      <Text style={[styles.stakePrizeSub, { color: isDark ? '#7A9182' : '#8CA093' }]}>
-                        {stake.fee === 0 ? 'Practice XP' : `Win ${(stake.fee * selectedTableSize).toLocaleString()} 🪙`}
+                      <Text style={[styles.timerTagText, { color: isDark ? '#7A9182' : '#8CA093' }]}>
+                        {t.tag}
                       </Text>
                     </TouchableOpacity>
                   );
                 })}
               </View>
 
-              {/* Start Matchmaking Action Button */}
+              {/* Start Search Button */}
               <TouchableOpacity
                 activeOpacity={0.85}
                 style={styles.startSearchBtn}
-                onPress={handleStartSearching}
+                onPress={() => {
+                  setMatchedOpponents([]);
+                  setIsMatchReady(false);
+                  setElapsedSeconds(0);
+                  setMatchCountdown(3);
+                  setIsSearching(true);
+                  soundService.play('button_tap');
+                  vibrationService.vibrateTap();
+                }}
               >
-                <LinearGradient
-                  colors={['#E74C3C', '#C0392B', '#922B21']}
-                  style={styles.startSearchGradient}
-                >
-                  <Text style={styles.startSearchBtnText}>
-                    ⚡ FIND {selectedTableSize}P MATCH NOW
-                  </Text>
+                <LinearGradient colors={['#E74C3C', '#C0392B', '#922B21']} style={styles.startSearchGradient}>
+                  <Text style={styles.startSearchBtnText}>⚡ FIND {selectedTableSize}P MATCH NOW</Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
           )
         ) : (
-          /* ─── PLAY WITH FRIENDS VIEW ─── */
+          /* ════════════════════ PLAY WITH FRIENDS VIEW ════════════════════ */
           privateTab === 'create' ? (
-            /* CREATE ROOM VIEW */
-            <View style={styles.privateCard}>
-              <Text style={styles.privateHeaderIcon}>👑</Text>
-              <Text style={styles.privateTitle}>Host Custom Uno Room</Text>
-              <Text style={styles.privateSub}>
-                Share this code with your friends or send direct invites below
-              </Text>
-
-              {/* Room Code Display Box */}
-              <View style={styles.codeDisplayBox}>
-                <Text style={styles.codeLabel}>YOUR ROOM CODE</Text>
-                <Text style={styles.codeLargeText}>{roomCode}</Text>
-
-                <View style={styles.codeActionsRow}>
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    style={styles.codeActionBtn}
-                    onPress={handleCopyRoomCode}
-                  >
-                    <Text style={styles.codeActionText}>📋 Copy Code</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    activeOpacity={0.8}
-                    style={[styles.codeActionBtn, { backgroundColor: '#2980B9' }]}
-                    onPress={handleShareRoomCode}
-                  >
-                    <Text style={styles.codeActionText}>↗ Share</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Table Capacity Selector */}
-              <View style={[styles.sectionHeader, { width: '100%', marginTop: 8 }]}>
-                <Text style={styles.sectionTitle}>ROOM CAPACITY</Text>
-              </View>
-
-              <View style={[styles.tableSizesRow, { width: '100%', marginBottom: 16 }]}>
-                {TABLE_SIZES.map((size) => {
-                  const isSelected = selectedTableSize === size.count;
-                  return (
-                    <TouchableOpacity
-                      key={size.count}
-                      activeOpacity={0.8}
-                      style={[
-                        styles.sizeCard,
-                        {
-                          backgroundColor: isDark ? '#141E18' : '#FFFFFF',
-                          borderColor: isSelected ? '#2ECC71' : isDark ? 'rgba(255,255,255,0.08)' : '#E0ECE4',
-                        },
-                        isSelected && { borderColor: '#2ECC71', borderWidth: 2 },
-                      ]}
-                      onPress={() => setSelectedTableSize(size.count)}
-                    >
-                      <Text style={styles.sizeIcon}>{size.icon}</Text>
-                      <Text style={[styles.sizeTitle, { color: isSelected ? '#2ECC71' : isDark ? '#FFF' : '#1A2318' }]}>
-                        {size.title}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              {/* Friends Invite Strip */}
-              {friendsList.length > 0 && (
-                <View style={{ width: '100%', marginBottom: 18 }}>
-                  <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>INVITE ONLINE FRIENDS</Text>
+            !isRoomCreated ? (
+              /* ─── 1. HOST ROOM CONFIGURATION SCREEN ─── */
+              <View style={styles.setupContainer}>
+                {/* Hero Card */}
+                <LinearGradient colors={['#27AE60', '#1E8449', '#145A32']} style={styles.heroCard}>
+                  <View style={styles.heroLeft}>
+                    <View style={[styles.heroBadge, { backgroundColor: 'rgba(0,0,0,0.4)' }]}>
+                      <Text style={[styles.heroBadgeText, { color: '#2ECC71' }]}>CUSTOM MULTIPLAYER ARENA</Text>
+                    </View>
+                    <Text style={styles.heroTitle}>Host Private Uno Table</Text>
+                    <Text style={styles.heroSub}>
+                      Select table capacity (2 to 8 players), timer, and invite your friends with your custom room code!
+                    </Text>
                   </View>
+                  <Text style={styles.heroIcon}>👑</Text>
+                </LinearGradient>
 
-                  {friendsList.map((f) => {
-                    const isInvited = invitedFriends.has(f.id);
+                {/* Section: Select Player Capacity (2 to 8 Players) */}
+                <View style={styles.sectionHeader}>
+                  <Text style={[styles.sectionTitle, { color: '#2ECC71' }]}>
+                    SELECT ROOM CAPACITY (2 - 8 PLAYERS)
+                  </Text>
+                  <View style={[styles.prizePoolTag, { backgroundColor: 'rgba(46, 204, 113, 0.15)' }]}>
+                    <Text style={[styles.prizePoolTagText, { color: '#2ECC71' }]}>
+                      {selectedTableSize} PLAYERS TABLE
+                    </Text>
+                  </View>
+                </View>
+
+                {/* 2 to 8 Players Capacity Grid */}
+                <View style={styles.capacityGrid}>
+                  {TABLE_CAPACITY_OPTIONS.map((cap) => {
+                    const isSelected = selectedTableSize === cap.count;
                     return (
-                      <View
-                        key={f.id}
+                      <TouchableOpacity
+                        key={cap.count}
+                        activeOpacity={0.8}
                         style={[
-                          styles.friendRow,
+                          styles.capacityCard,
                           {
-                            backgroundColor: isDark ? '#141E18' : '#FFFFFF',
-                            borderColor: isDark ? 'rgba(255,255,255,0.08)' : '#E0ECE4',
+                            backgroundColor: isDark ? '#101C14' : '#FFFFFF',
+                            borderColor: isSelected ? cap.color : isDark ? 'rgba(255,255,255,0.08)' : '#E0ECE4',
                           },
+                          isSelected && { borderWidth: 2, borderColor: cap.color },
                         ]}
+                        onPress={() => setSelectedTableSize(cap.count)}
                       >
-                        <Text style={styles.friendAvatar}>😎</Text>
-                        <View style={{ flex: 1 }}>
-                          <Text style={[styles.friendName, { color: isDark ? '#FFF' : '#1A2318' }]}>
-                            {f.name || f.username}
-                          </Text>
-                          <Text style={[styles.friendStatus, { color: f.isOnline ? '#2ECC71' : '#7A9182' }]}>
-                            {f.isOnline ? '🟢 Online' : 'Offline'}
-                          </Text>
-                        </View>
-                        <TouchableOpacity
-                          disabled={isInvited}
+                        <Text style={styles.capacityIcon}>{cap.icon}</Text>
+                        <Text
                           style={[
-                            styles.inviteBtn,
-                            isInvited && { backgroundColor: 'rgba(255,255,255,0.1)' },
+                            styles.capacityCountText,
+                            { color: isSelected ? cap.color : isDark ? '#FFF' : '#1A2318' },
                           ]}
-                          onPress={() => handleInviteFriend(f)}
                         >
-                          <Text style={styles.inviteBtnText}>
-                            {isInvited ? 'INVITED' : 'INVITE +'}
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
+                          {cap.title}
+                        </Text>
+                        <Text style={[styles.capacityDescText, { color: isDark ? '#7A9182' : '#8CA093' }]}>
+                          {cap.desc}
+                        </Text>
+                        {isSelected && (
+                          <View style={[styles.activePill, { backgroundColor: cap.color }]}>
+                            <Text style={styles.activePillText}>SELECTED</Text>
+                          </View>
+                        )}
+                      </TouchableOpacity>
                     );
                   })}
                 </View>
-              )}
 
-              {/* Start Room Match Button */}
-              <TouchableOpacity
-                activeOpacity={0.85}
-                style={styles.startSearchBtn}
-                onPress={handleStartPrivateRoomMatch}
-              >
-                <LinearGradient
-                  colors={['#27AE60', '#1E8449', '#145A32']}
-                  style={styles.startSearchGradient}
+                {/* Section: Turn Timer */}
+                <View style={styles.sectionHeader}>
+                  <Text style={[styles.sectionTitle, { color: '#2ECC71' }]}>TURN TIMER</Text>
+                </View>
+
+                <View style={styles.timerRow}>
+                  {TURN_TIME_OPTIONS.map((t) => {
+                    const isSelected = selectedTurnTime.seconds === t.seconds;
+                    return (
+                      <TouchableOpacity
+                        key={t.seconds}
+                        activeOpacity={0.8}
+                        style={[
+                          styles.timerCard,
+                          {
+                            backgroundColor: isDark ? '#101C14' : '#FFFFFF',
+                            borderColor: isSelected ? '#2ECC71' : isDark ? 'rgba(255,255,255,0.08)' : '#E0ECE4',
+                          },
+                          isSelected && { borderColor: '#2ECC71', borderWidth: 2 },
+                        ]}
+                        onPress={() => setSelectedTurnTime(t)}
+                      >
+                        <Text
+                          style={[
+                            styles.timerLabelText,
+                            { color: isSelected ? '#2ECC71' : isDark ? '#FFF' : '#1A2318' },
+                          ]}
+                        >
+                          {t.label}
+                        </Text>
+                        <Text style={[styles.timerTagText, { color: isDark ? '#7A9182' : '#8CA093' }]}>
+                          {t.tag}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Create Room Button */}
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.startSearchBtn}
+                  onPress={handleHostCreateRoom}
                 >
-                  <Text style={styles.startSearchBtnText}>🎮 START ROOM MATCH</Text>
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
+                  <LinearGradient colors={['#27AE60', '#1E8449', '#145A32']} style={styles.startSearchGradient}>
+                    <Text style={styles.startSearchBtnText}>
+                      👑 CREATE & OPEN {selectedTableSize}P LOBBY
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              /* ─── 2. LIVE INTERACTIVE WAITING ROOM (LOBBY) ─── */
+              <View style={styles.setupContainer}>
+                {/* Glowing Room Code Hero Card */}
+                <View style={styles.roomCodeBox}>
+                  <View style={styles.roomCodeTopRow}>
+                    <View style={styles.roomCodeBadge}>
+                      <Text style={styles.roomCodeBadgeText}>OFFICIAL UNO ROOM</Text>
+                    </View>
+                    <Text style={styles.roomCapacityBadge}>
+                      👥 {roomPlayers.length} / {selectedTableSize} Players
+                    </Text>
+                  </View>
+
+                  <Text style={styles.roomCodeLabel}>SHARE ROOM CODE WITH FRIENDS</Text>
+                  <Text style={styles.roomCodeLarge}>{roomCode}</Text>
+
+                  {/* Copy & Share Buttons */}
+                  <View style={styles.roomCodeBtnRow}>
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      style={styles.roomActionBtn}
+                      onPress={handleCopyRoomCode}
+                    >
+                      <Text style={styles.roomActionBtnText}>📋 Copy Code</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      style={[styles.roomActionBtn, { backgroundColor: '#2980B9' }]}
+                      onPress={handleShareRoomCode}
+                    >
+                      <Text style={styles.roomActionBtnText}>↗ Share Link</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* Quick Host Control Buttons: Add Bot & Fill Remaining */}
+                <View style={styles.hostBotControlRow}>
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={styles.addBotBtn}
+                    onPress={handleAddBotSlot}
+                  >
+                    <Text style={styles.addBotBtnText}>+ Add Single Bot</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    activeOpacity={0.8}
+                    style={[styles.addBotBtn, { backgroundColor: '#D35400' }]}
+                    onPress={handleFillAllWithBots}
+                  >
+                    <Text style={styles.addBotBtnText}>⚡ Fill All with Bots</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Section: Table Seats Grid (2 to 8 Slots) */}
+                <View style={styles.sectionHeader}>
+                  <Text style={[styles.sectionTitle, { color: '#2ECC71' }]}>
+                    TABLE SEATS ({roomPlayers.length}/{selectedTableSize})
+                  </Text>
+                  <Text style={[styles.sectionSub, { color: isDark ? '#7A9182' : '#8CA093' }]}>
+                    {roomPlayers.length >= 2 ? 'Ready to launch!' : 'Waiting for at least 2 players...'}
+                  </Text>
+                </View>
+
+                <View style={styles.slotsContainer}>
+                  {/* Render Occupied Slots */}
+                  {roomPlayers.map((player, idx) => (
+                    <View
+                      key={player.id}
+                      style={[
+                        styles.playerSlotCard,
+                        {
+                          backgroundColor: isDark ? '#101C14' : '#FFFFFF',
+                          borderColor: player.isHost ? '#F1C40F' : '#2ECC71',
+                        },
+                      ]}
+                    >
+                      <LinearGradient
+                        colors={player.isHost ? ['#F1C40F', '#D68910'] : ['#2ECC71', '#27AE60']}
+                        style={styles.slotAvatarWrap}
+                      >
+                        <Text style={styles.slotAvatarText}>{player.avatar}</Text>
+                      </LinearGradient>
+
+                      <View style={{ flex: 1 }}>
+                        <View style={styles.slotNameRow}>
+                          <Text style={[styles.slotPlayerName, { color: isDark ? '#FFF' : '#1A2318' }]}>
+                            {player.name}
+                          </Text>
+                          {player.isHost && (
+                            <View style={[styles.youBadge, { backgroundColor: 'rgba(241, 196, 15, 0.2)' }]}>
+                              <Text style={[styles.youBadgeText, { color: '#F1C40F' }]}>👑 HOST</Text>
+                            </View>
+                          )}
+                          {player.isBot && (
+                            <View style={[styles.youBadge, { backgroundColor: 'rgba(52, 152, 219, 0.2)' }]}>
+                              <Text style={[styles.youBadgeText, { color: '#3498DB' }]}>AI BOT</Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={[styles.slotSub, { color: isDark ? '#8CA093' : '#5C7A6A' }]}>
+                          Seat #{idx + 1} · 🟢 {player.ping || '18ms'}
+                        </Text>
+                      </View>
+
+                      {/* Remove Button for Host */}
+                      {!player.isHost && (
+                        <TouchableOpacity
+                          activeOpacity={0.7}
+                          style={styles.removeSlotBtn}
+                          onPress={() => handleRemovePlayer(player.id)}
+                        >
+                          <Text style={styles.removeSlotText}>✕</Text>
+                        </TouchableOpacity>
+                      )}
+
+                      <View
+                        style={[
+                          styles.readyPill,
+                          { backgroundColor: player.isReady ? '#2ECC71' : '#E67E22' },
+                        ]}
+                      >
+                        <Text style={styles.readyPillText}>
+                          {player.isReady ? 'READY ✓' : 'WAITING'}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+
+                  {/* Render Remaining Empty Slots */}
+                  {Array.from({ length: Math.max(0, selectedTableSize - roomPlayers.length) }).map(
+                    (_, index) => {
+                      const seatNum = roomPlayers.length + index + 1;
+                      return (
+                        <View
+                          key={`empty_${index}`}
+                          style={[
+                            styles.emptySlotCard,
+                            {
+                              backgroundColor: isDark ? '#0A140E' : '#F9FCFA',
+                              borderColor: isDark ? 'rgba(255,255,255,0.08)' : '#D0E0D6',
+                            },
+                          ]}
+                        >
+                          <View style={styles.emptySlotLeft}>
+                            <Text style={styles.emptySlotIcon}>🪑</Text>
+                            <View>
+                              <Text style={[styles.emptySlotTitle, { color: isDark ? '#FFF' : '#1A2318' }]}>
+                                Seat #{seatNum} (Open)
+                              </Text>
+                              <Text style={[styles.emptySlotSub, { color: isDark ? '#7A9182' : '#8CA093' }]}>
+                                Waiting for friend or bot...
+                              </Text>
+                            </View>
+                          </View>
+
+                          <TouchableOpacity
+                            activeOpacity={0.8}
+                            style={styles.emptySlotAddBotBtn}
+                            onPress={handleAddBotSlot}
+                          >
+                            <Text style={styles.emptySlotAddBotText}>+ Add Bot</Text>
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    },
+                  )}
+                </View>
+
+                {/* Section: Invite Online Friends */}
+                {friendsList.length > 0 && (
+                  <View style={{ width: '100%', marginBottom: 18 }}>
+                    <View style={styles.sectionHeader}>
+                      <Text style={[styles.sectionTitle, { color: '#2ECC71' }]}>
+                        INVITE ONLINE FRIENDS
+                      </Text>
+                    </View>
+
+                    {friendsList.map((f) => {
+                      const isInvited = invitedFriends.has(f.id);
+                      return (
+                        <View
+                          key={f.id}
+                          style={[
+                            styles.friendRow,
+                            {
+                              backgroundColor: isDark ? '#141E18' : '#FFFFFF',
+                              borderColor: isDark ? 'rgba(255,255,255,0.08)' : '#E0ECE4',
+                            },
+                          ]}
+                        >
+                          <Text style={styles.friendAvatar}>{f.avatar || '😎'}</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.friendName, { color: isDark ? '#FFF' : '#1A2318' }]}>
+                              {f.name || f.username}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.friendStatus,
+                                { color: f.isOnline ? '#2ECC71' : '#7A9182' },
+                              ]}
+                            >
+                              {f.isOnline ? '🟢 Online' : 'Offline'}
+                            </Text>
+                          </View>
+                          <TouchableOpacity
+                            disabled={isInvited}
+                            style={[
+                              styles.inviteBtn,
+                              isInvited && { backgroundColor: 'rgba(255,255,255,0.1)' },
+                            ]}
+                            onPress={() => handleInviteFriend(f)}
+                          >
+                            <Text style={styles.inviteBtnText}>
+                              {isInvited ? 'INVITED ✓' : 'INVITE +'}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    })}
+                  </View>
+                )}
+
+                {/* Launch Match Button */}
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.startSearchBtn}
+                  onPress={handleStartPrivateRoomMatch}
+                >
+                  <LinearGradient
+                    colors={
+                      roomPlayers.length >= 2
+                        ? ['#27AE60', '#1E8449', '#145A32']
+                        : ['#7F8C8D', '#515A5A', '#34495E']
+                    }
+                    style={styles.startSearchGradient}
+                  >
+                    <Text style={styles.startSearchBtnText}>
+                      🎮 START UNO MATCH ({roomPlayers.length}/{selectedTableSize} PLAYERS)
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+
+                {/* Leave / Close Room */}
+                <TouchableOpacity
+                  activeOpacity={0.75}
+                  style={styles.leaveRoomBtn}
+                  onPress={() => {
+                    socketService.emit(SOCKET_EVENTS.LOBBY_LEAVE);
+                    setIsRoomCreated(false);
+                    showToast('Room Closed');
+                  }}
+                >
+                  <Text style={styles.leaveRoomText}>✕ Close & Leave Room</Text>
+                </TouchableOpacity>
+              </View>
+            )
           ) : (
-            /* JOIN ROOM VIEW */
-            <View style={styles.privateCard}>
-              <Text style={styles.privateHeaderIcon}>🔑</Text>
-              <Text style={styles.privateTitle}>Enter Room Code</Text>
-              <Text style={styles.privateSub}>
-                Type the 6-character room code provided by the room host
-              </Text>
+            /* ─── 3. JOIN ROOM VIEW ─── */
+            <View style={styles.setupContainer}>
+              <View style={styles.privateCard}>
+                <Text style={styles.privateHeaderIcon}>🔑</Text>
+                <Text style={styles.privateTitle}>Enter Uno Room Code</Text>
+                <Text style={styles.privateSub}>
+                  Type the room code shared by your friend to jump into their private lobby!
+                </Text>
 
-              <TextInput
-                style={[
-                  styles.codeInput,
-                  {
-                    color: isDark ? '#FFF' : '#1A2318',
-                    borderColor: '#E74C3C',
-                    backgroundColor: isDark ? '#101C14' : '#FFFFFF',
-                  },
-                ]}
-                value={inputJoinCode}
-                onChangeText={setInputJoinCode}
-                placeholder="e.g. UNO-8492"
-                placeholderTextColor="#7A9182"
-                autoCapitalize="characters"
-              />
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={[
+                      styles.codeInput,
+                      {
+                        color: isDark ? '#FFF' : '#1A2318',
+                        borderColor: '#2ECC71',
+                        backgroundColor: isDark ? '#101C14' : '#FFFFFF',
+                      },
+                    ]}
+                    value={inputJoinCode}
+                    onChangeText={setInputJoinCode}
+                    placeholder="e.g. UNO-8492"
+                    placeholderTextColor="#7A9182"
+                    autoCapitalize="characters"
+                    maxLength={10}
+                  />
 
-              <TouchableOpacity
-                activeOpacity={0.85}
-                style={styles.startSearchBtn}
-                onPress={handleJoinByCode}
-              >
-                <LinearGradient
-                  colors={['#E74C3C', '#C0392B', '#922B21']}
-                  style={styles.startSearchGradient}
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    style={styles.pasteBtn}
+                    onPress={handlePasteCode}
+                  >
+                    <Text style={styles.pasteBtnText}>📋 Paste</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.startSearchBtn}
+                  onPress={handleJoinByCode}
                 >
-                  <Text style={styles.startSearchBtnText}>🚀 JOIN UNO ROOM</Text>
-                </LinearGradient>
-              </TouchableOpacity>
+                  <LinearGradient colors={['#27AE60', '#1E8449', '#145A32']} style={styles.startSearchGradient}>
+                    <Text style={styles.startSearchBtnText}>🚀 JOIN UNO ROOM</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
             </View>
           )
         )}
@@ -1282,12 +1696,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     marginBottom: 10,
+    marginTop: 4,
   },
   sectionTitle: {
     fontSize: 11.5,
     fontWeight: '900',
     color: '#E74C3C',
     letterSpacing: 0.8,
+  },
+  sectionSub: {
+    fontSize: 10,
+    fontWeight: '600',
   },
   prizePoolTag: {
     backgroundColor: 'rgba(241, 196, 15, 0.15)',
@@ -1300,82 +1719,64 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#F1C40F',
   },
-  tableSizesRow: {
+  capacityGrid: {
     flexDirection: 'row',
-    gap: 10,
+    flexWrap: 'wrap',
+    gap: 8,
     marginBottom: 18,
   },
-  sizeCard: {
-    flex: 1,
-    borderRadius: 16,
-    padding: 12,
+  capacityCard: {
+    width: (width - 32 - 16) / 3,
+    borderRadius: 14,
+    padding: 10,
     alignItems: 'center',
     borderWidth: 1.5,
   },
-  sizeCardActive: {
-    borderColor: '#E74C3C',
-    borderWidth: 2,
-  },
-  sizeIcon: {
-    fontSize: 24,
-    marginBottom: 4,
-  },
-  sizeTitle: {
-    fontSize: 12,
-    fontWeight: '800',
+  capacityIcon: {
+    fontSize: 22,
     marginBottom: 2,
   },
-  sizeDesc: {
-    fontSize: 9.5,
-    fontWeight: '600',
+  capacityCountText: {
+    fontSize: 11.5,
+    fontWeight: '900',
+    marginBottom: 2,
   },
-  activeCheckPill: {
-    marginTop: 6,
-    backgroundColor: '#E74C3C',
-    paddingHorizontal: 6,
+  capacityDescText: {
+    fontSize: 8.5,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  activePill: {
+    marginTop: 4,
+    paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 4,
   },
-  activeCheckText: {
-    fontSize: 8,
+  activePillText: {
+    fontSize: 7.5,
     fontWeight: '900',
     color: '#FFFFFF',
   },
-  stakeGrid: {
+  timerRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
+    gap: 8,
     marginBottom: 20,
   },
-  stakeCard: {
-    width: (width - 32 - 10) / 2,
-    borderRadius: 14,
-    padding: 12,
+  timerCard: {
+    flex: 1,
+    borderRadius: 12,
+    padding: 10,
+    alignItems: 'center',
     borderWidth: 1.5,
   },
-  stakeCardActive: {
-    borderColor: '#F1C40F',
-    borderWidth: 2,
+  timerLabelText: {
+    fontSize: 12,
+    fontWeight: '800',
   },
-  stakeTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  stakeBadgeText: {
-    fontSize: 9,
-    fontWeight: '900',
-    color: '#7A9182',
-  },
-  stakeLabel: {
-    fontSize: 15,
-    fontWeight: '900',
-    marginBottom: 2,
-  },
-  stakePrizeSub: {
-    fontSize: 10,
+  timerTagText: {
+    fontSize: 9.5,
     fontWeight: '600',
+    marginTop: 2,
   },
   startSearchBtn: {
     width: '100%',
@@ -1389,7 +1790,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   startSearchBtnText: {
-    fontSize: 14.5,
+    fontSize: 14,
     fontWeight: '900',
     color: '#FFFFFF',
     letterSpacing: 0.8,
@@ -1433,10 +1834,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
   },
   orbitBadgeGlyph: {
     fontSize: 12,
@@ -1556,7 +1953,6 @@ const styles = StyleSheet.create({
   youBadgeText: {
     fontSize: 8.5,
     fontWeight: '900',
-    color: '#2ECC71',
   },
   slotSub: {
     fontSize: 10,
@@ -1600,77 +1996,141 @@ const styles = StyleSheet.create({
     color: '#E74C3C',
     letterSpacing: 0.8,
   },
-  privateCard: {
-    alignItems: 'center',
+  // Waiting Room Styles
+  roomCodeBox: {
     width: '100%',
-  },
-  privateHeaderIcon: {
-    fontSize: 38,
-    marginBottom: 6,
-  },
-  privateTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  privateSub: {
-    fontSize: 12,
-    color: '#8CA093',
-    textAlign: 'center',
-    marginBottom: 16,
-    paddingHorizontal: 12,
-  },
-  codeDisplayBox: {
-    width: '100%',
-    backgroundColor: 'rgba(231, 76, 60, 0.12)',
+    backgroundColor: 'rgba(46, 204, 113, 0.1)',
     borderRadius: 18,
-    padding: 18,
+    padding: 16,
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: '#E74C3C',
-    marginBottom: 18,
+    borderColor: '#2ECC71',
+    marginBottom: 14,
   },
-  codeLabel: {
+  roomCodeTopRow: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  roomCodeBadge: {
+    backgroundColor: 'rgba(46, 204, 113, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  roomCodeBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
+    color: '#2ECC71',
+  },
+  roomCapacityBadge: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#F1C40F',
+  },
+  roomCodeLabel: {
     fontSize: 10,
     fontWeight: '900',
-    color: '#E74C3C',
+    color: '#2ECC71',
     letterSpacing: 1,
+    marginTop: 4,
   },
-  codeLargeText: {
-    fontSize: 26,
+  roomCodeLarge: {
+    fontSize: 32,
     fontWeight: '900',
     color: '#F1C40F',
     letterSpacing: 4,
-    marginVertical: 6,
+    marginVertical: 4,
   },
-  codeActionsRow: {
+  roomCodeBtnRow: {
     flexDirection: 'row',
     gap: 10,
-    marginTop: 8,
+    marginTop: 6,
   },
-  codeActionBtn: {
-    backgroundColor: '#E74C3C',
+  roomActionBtn: {
+    backgroundColor: '#27AE60',
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 10,
   },
-  codeActionText: {
+  roomActionBtnText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  hostBotControlRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  addBotBtn: {
+    flex: 1,
+    backgroundColor: '#8E44AD',
+    paddingVertical: 9,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  addBotBtnText: {
     fontSize: 11.5,
     fontWeight: '800',
     color: '#FFFFFF',
   },
-  codeInput: {
-    width: '100%',
-    fontSize: 20,
-    fontWeight: '900',
-    textAlign: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+  emptySlotCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
     borderRadius: 14,
     borderWidth: 1.5,
-    marginBottom: 16,
-    letterSpacing: 2,
+    borderStyle: 'dashed',
+  },
+  emptySlotLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  emptySlotIcon: {
+    fontSize: 22,
+    opacity: 0.6,
+  },
+  emptySlotTitle: {
+    fontSize: 12.5,
+    fontWeight: '800',
+  },
+  emptySlotSub: {
+    fontSize: 9.5,
+    fontWeight: '500',
+    marginTop: 1,
+  },
+  emptySlotAddBotBtn: {
+    backgroundColor: 'rgba(142, 68, 173, 0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#8E44AD',
+  },
+  emptySlotAddBotText: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: '#9B59B6',
+  },
+  removeSlotBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(231, 76, 60, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E74C3C',
+  },
+  removeSlotText: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: '#E74C3C',
   },
   friendRow: {
     flexDirection: 'row',
@@ -1702,6 +2162,95 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '900',
     color: '#FFFFFF',
+  },
+  leaveRoomBtn: {
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  leaveRoomText: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#E74C3C',
+  },
+  // Join Room Card
+  privateCard: {
+    alignItems: 'center',
+    width: '100%',
+    paddingVertical: 12,
+  },
+  privateHeaderIcon: {
+    fontSize: 42,
+    marginBottom: 8,
+  },
+  privateTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  privateSub: {
+    fontSize: 12,
+    color: '#8CA093',
+    textAlign: 'center',
+    marginBottom: 20,
+    paddingHorizontal: 12,
+    lineHeight: 18,
+  },
+  inputWrapper: {
+    width: '100%',
+    position: 'relative',
+    marginBottom: 16,
+  },
+  codeInput: {
+    width: '100%',
+    fontSize: 22,
+    fontWeight: '900',
+    textAlign: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    letterSpacing: 3,
+  },
+  pasteBtn: {
+    position: 'absolute',
+    right: 12,
+    top: 14,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  pasteBtnText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  toastContainer: {
+    position: 'absolute',
+    top: 80,
+    left: 20,
+    right: 20,
+    zIndex: 9999,
+    alignItems: 'center',
+  },
+  toastGradient: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#2ECC71',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 8,
+  },
+  toastText: {
+    fontSize: 12.5,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    textAlign: 'center',
   },
 });
 
