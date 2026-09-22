@@ -18,13 +18,13 @@ import { useAppSelector } from '../../../../redux/hooks';
 const { width } = Dimensions.get('window');
 const TILE_WIDTH = (width - 36 - 12) / 2;
 
-interface ModeTile {
+interface ModeOption {
   id: string;
   title: string;
   subtitle: string;
   glyph: string;
-  badge: string;
-  gradient: [string, string];
+  playersCount: string;
+  gradient: string[];
   borderColor: string;
   onPress: () => void;
 }
@@ -34,7 +34,14 @@ export const UnoHomeScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const { isDark } = useTheme();
 
-  const userCoins = useAppSelector((state) => state.user.profile?.coins) || 1500;
+  const userProfile = useAppSelector((state) => state.user.profile);
+  const userCoins = userProfile?.coins || 1500;
+  const unoStats = userProfile?.gameStats?.find((g) => g.gameId === 'uno') || {
+    gamesPlayed: 34,
+    wins: 22,
+    rank: 1480,
+    winRate: 65,
+  };
 
   const handleSelectMode = (mode: string) => {
     if (mode === 'computer') {
@@ -50,25 +57,35 @@ export const UnoHomeScreen: React.FC = () => {
     }
   };
 
-  const modeTiles: ModeTile[] = [
+  const modeTiles: ModeOption[] = [
     {
       id: 'computer',
-      title: 'Play with Robot',
-      subtitle: '1v1 & 4P Table · Easy to Hard AI',
+      title: 'VS Robot',
+      subtitle: '1v1 & 4P Table · AI Bots',
       glyph: '🤖',
-      badge: 'INSTANT PLAY',
-      gradient: ['#C0392B', '#781515'],
+      playersCount: 'Instant Play',
+      gradient: isDark ? ['#381F1F', '#201010'] : ['#FDE8E8', '#F7D0D0'],
       borderColor: '#E74C3C',
       onPress: () => handleSelectMode('computer'),
     },
     {
+      id: 'local',
+      title: 'Pass & Play',
+      subtitle: '2 to 4 Players on 1 device',
+      glyph: '👥',
+      playersCount: 'Offline Mode',
+      gradient: isDark ? ['#362E20', '#221C12'] : ['#FFF8E7', '#FCEEC8'],
+      borderColor: '#D4A017',
+      onPress: () => handleSelectMode('local'),
+    },
+    {
       id: 'random',
       title: 'Quick Match',
-      subtitle: 'Online random opponents',
+      subtitle: 'Random online opponent',
       glyph: '⚡',
-      badge: '2,110 ONLINE',
-      gradient: ['#2980B9', '#154360'],
-      borderColor: '#3498DB',
+      playersCount: '2,110 online',
+      gradient: isDark ? ['#1F2B3E', '#111824'] : ['#E6F0FA', '#D0E2F7'],
+      borderColor: '#2668D9',
       onPress: () => handleSelectMode('random'),
     },
     {
@@ -76,21 +93,21 @@ export const UnoHomeScreen: React.FC = () => {
       title: 'Play with Friends',
       subtitle: 'Create / Join with code',
       glyph: '🔒',
-      badge: 'CUSTOM ROOM',
-      gradient: ['#27AE60', '#145A32'],
+      playersCount: 'Custom Room',
+      gradient: isDark ? ['#1F3624', '#102014'] : ['#E8F8F0', '#D0F2E0'],
       borderColor: '#2ECC71',
       onPress: () => handleSelectMode('private'),
     },
   ];
 
   return (
-    <View style={[styles.container, { backgroundColor: isDark ? '#080E0B' : '#F2F8F4' }]}>
+    <View style={[styles.container, { backgroundColor: isDark ? '#0F0B0B' : '#FBF6F6' }]}>
       <StatusBar barStyle="light-content" />
 
       {/* Top App Bar */}
       <LinearGradient
-        colors={['#C0392B', '#922B21', '#641E16']}
-        style={[styles.appBar, { paddingTop: Math.max(insets.top + 8, 26) }]}
+        colors={isDark ? ['#421212', '#2B0B0B', '#1A0606'] : ['#C0392B', '#922B21', '#641E16']}
+        style={[styles.appBar, { paddingTop: Math.max(insets.top + 10, 28) }]}
       >
         <View style={styles.appBarRow}>
           <TouchableOpacity
@@ -100,11 +117,7 @@ export const UnoHomeScreen: React.FC = () => {
           >
             <Text style={styles.backIcon}>←</Text>
           </TouchableOpacity>
-
-          <View style={styles.titleWrap}>
-            <Text style={styles.appBarTitle}>UNO CHAMPIONSHIP</Text>
-          </View>
-
+          <Text style={styles.appBarTitle}>UNO Championship</Text>
           <View style={styles.coinPill}>
             <Text style={styles.coinDot}>🪙</Text>
             <Text style={styles.coinText}>{userCoins.toLocaleString()}</Text>
@@ -118,94 +131,135 @@ export const UnoHomeScreen: React.FC = () => {
       >
         {/* Hero Banner */}
         <LinearGradient
-          colors={['#E74C3C', '#C0392B', '#8E1A1A']}
-          style={styles.heroBanner}
+          colors={isDark ? ['#451B1B', '#291010', '#180A0A'] : ['#D32F2F', '#B71C1C', '#8E1A1A']}
+          style={styles.heroCard}
         >
-          <View style={styles.heroContent}>
-            <View style={styles.heroBadge}>
-              <Text style={styles.heroBadgeText}>SPEED 3-CARD RULES · 108 DECK</Text>
-            </View>
-            <Text style={styles.heroTitle}>Master the Color & Action Cards</Text>
-            <Text style={styles.heroSubtitle}>
-              Match colors & numbers, drop +4 Wilds, and shout UNO before your rivals!
-            </Text>
-
-            <TouchableOpacity
-              activeOpacity={0.85}
-              style={styles.heroActionBtn}
-              onPress={() => handleSelectMode('computer')}
-            >
-              <LinearGradient
-                colors={['#F1C40F', '#F39C12']}
-                style={styles.heroActionGradient}
-              >
-                <Text style={styles.heroActionText}>⚡ PLAY VS ROBOT NOW</Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </View>
-
           <View style={styles.heroEmblem}>
-            <Text style={styles.heroEmblemText}>🂡</Text>
+            <Text style={styles.heroGlyph}>🂡</Text>
+          </View>
+          <View style={styles.heroContent}>
+            <View style={styles.livePill}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>2,110 Players Online</Text>
+            </View>
+            <Text style={styles.heroTitle}>Uno Master Classic</Text>
+            <Text style={styles.heroSub}>Speed 3-Card Rules · Action Cards & Wilds</Text>
           </View>
         </LinearGradient>
 
-        {/* Section: Select Game Mode */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>SELECT GAME MODE</Text>
+        {/* Mode Selection Grid */}
+        <Text style={[styles.sectionTitle, { color: isDark ? '#FF7675' : '#C0392B' }]}>
+          SELECT GAME MODE
+        </Text>
+
+        <View style={styles.grid}>
+          {modeTiles.map((tile) => (
+            <TouchableOpacity
+              key={tile.id}
+              activeOpacity={0.82}
+              style={[
+                styles.modeTile,
+                {
+                  borderColor: tile.borderColor,
+                },
+              ]}
+              onPress={tile.onPress}
+            >
+              <LinearGradient colors={tile.gradient} style={styles.tileGradient}>
+                <View style={styles.tileHeader}>
+                  <Text style={styles.tileGlyph}>{tile.glyph}</Text>
+                  <Text style={[styles.tileBadge, { color: tile.borderColor }]}>
+                    {tile.playersCount}
+                  </Text>
+                </View>
+                <Text
+                  style={[
+                    styles.tileTitle,
+                    { color: isDark ? '#FFFFFF' : '#1A2318' },
+                  ]}
+                >
+                  {tile.title}
+                </Text>
+                <Text
+                  style={[
+                    styles.tileSubtitle,
+                    { color: isDark ? '#A9B7C6' : '#636E72' },
+                  ]}
+                >
+                  {tile.subtitle}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          ))}
         </View>
 
-        <View style={styles.tilesGrid}>
-          {modeTiles.map((tile, index) => {
-            const isFullWidth = index === modeTiles.length - 1;
-            return (
-              <TouchableOpacity
-                key={tile.id}
-                activeOpacity={0.82}
-                style={[
-                  styles.tileCard,
-                  isFullWidth && styles.tileCardFull,
-                  {
-                    borderColor: tile.borderColor,
-                  },
-                ]}
-                onPress={tile.onPress}
-              >
-                <LinearGradient colors={tile.gradient} style={styles.tileGradient}>
-                  <View style={styles.tileTopRow}>
-                    <Text style={styles.tileGlyph}>{tile.glyph}</Text>
-                    <View style={styles.tileBadgeWrap}>
-                      <Text style={styles.tileBadgeText}>{tile.badge}</Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.tileBottom}>
-                    <Text style={styles.tileTitle}>{tile.title}</Text>
-                    <Text style={styles.tileSub}>{tile.subtitle}</Text>
-                  </View>
-                </LinearGradient>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* Guide & Rules Strip */}
+        {/* Interactive Rules & Guide Button */}
         <TouchableOpacity
-          activeOpacity={0.85}
-          style={styles.guideCard}
+          activeOpacity={0.8}
+          style={[
+            styles.rulesLinkCard,
+            {
+              backgroundColor: isDark ? '#1C1212' : '#FFFFFF',
+              borderColor: isDark ? 'rgba(231,76,60,0.35)' : '#FADBD8',
+            },
+          ]}
           onPress={() => handleSelectMode('rules')}
         >
           <LinearGradient
-            colors={['#1E272E', '#0F1418']}
-            style={styles.guideGradient}
+            colors={isDark ? ['rgba(231,76,60,0.15)', 'transparent'] : ['rgba(231,76,60,0.08)', 'transparent']}
+            style={styles.rulesGradient}
           >
-            <Text style={styles.guideIcon}>📖</Text>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.guideTitle}>Complete Uno Rules & Action Cards Guide</Text>
-              <Text style={styles.guideSub}>Learn Skip, Reverse, +2, +4 Wild rules and penalties</Text>
+            <View style={styles.rulesLeft}>
+              <Text style={styles.rulesIcon}>📖</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.rulesTitle, { color: isDark ? '#F1F4F7' : '#1A2318' }]}>
+                  How to Play UNO
+                </Text>
+                <Text style={[styles.rulesSub, { color: isDark ? '#A9B7C6' : '#636E72' }]}>
+                  Skip, Reverse, +2, Wild cards, and Uno shout penalties
+                </Text>
+              </View>
             </View>
-            <Text style={styles.guideArrow}>→</Text>
+            <Text style={styles.rulesChevron}>›</Text>
           </LinearGradient>
         </TouchableOpacity>
+
+        {/* Player Stats Snapshot */}
+        <View
+          style={[
+            styles.statsCard,
+            {
+              backgroundColor: isDark ? '#160E0E' : '#FFFFFF',
+              borderColor: isDark ? 'rgba(255,255,255,0.06)' : '#F5E6E6',
+            },
+          ]}
+        >
+          <Text style={[styles.statsHeader, { color: isDark ? '#FF7675' : '#C0392B' }]}>
+            YOUR UNO STATS
+          </Text>
+          <View style={styles.statsRow}>
+            <View style={styles.statBox}>
+              <Text style={[styles.statValue, { color: isDark ? '#FFF' : '#1A2318' }]}>
+                {unoStats.rank || 1480}
+              </Text>
+              <Text style={styles.statLabel}>Skill Rating</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statBox}>
+              <Text style={[styles.statValue, { color: isDark ? '#5CF27A' : '#1F9D55' }]}>
+                {unoStats.winRate || (unoStats.gamesPlayed ? Math.round(((unoStats.wins || 0) / unoStats.gamesPlayed) * 100) : 0)}%
+              </Text>
+              <Text style={styles.statLabel}>Win Rate</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statBox}>
+              <Text style={[styles.statValue, { color: isDark ? '#F0C64A' : '#D4A017' }]}>
+                {unoStats.gamesPlayed || 0}
+              </Text>
+              <Text style={styles.statLabel}>Matches</Text>
+            </View>
+          </View>
+        </View>
       </ScrollView>
     </View>
   );
@@ -217,9 +271,14 @@ const styles = StyleSheet.create({
   },
   appBar: {
     paddingHorizontal: 16,
-    paddingBottom: 14,
+    paddingBottom: 16,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 8,
   },
   appBarRow: {
     flexDirection: 'row',
@@ -230,7 +289,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 12,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -239,23 +298,19 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontWeight: '700',
   },
-  titleWrap: {
-    alignItems: 'center',
-  },
   appBarTitle: {
-    fontSize: 17,
-    fontWeight: '900',
+    fontSize: 18,
+    fontWeight: '800',
     color: '#FFFFFF',
-    letterSpacing: 0.8,
   },
   coinPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)',
+    backgroundColor: 'rgba(255,255,255,0.14)',
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 14,
-    gap: 4,
+    borderRadius: 16,
+    gap: 5,
   },
   coinDot: {
     fontSize: 13,
@@ -263,169 +318,194 @@ const styles = StyleSheet.create({
   coinText: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#FFD700',
+    color: '#F0C64A',
   },
   content: {
     padding: 16,
   },
-  heroBanner: {
-    borderRadius: 22,
-    padding: 18,
+  heroCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    overflow: 'hidden',
-    position: 'relative',
+    borderRadius: 22,
+    padding: 18,
     marginBottom: 20,
     borderWidth: 1.5,
-    borderColor: '#FF7675',
+    borderColor: 'rgba(231,76,60,0.4)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.45,
+    shadowRadius: 14,
+    elevation: 6,
+  },
+  heroEmblem: {
+    width: 64,
+    height: 64,
+    borderRadius: 18,
+    backgroundColor: 'rgba(231, 76, 60, 0.2)',
+    borderWidth: 1.5,
+    borderColor: '#E74C3C',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 14,
+  },
+  heroGlyph: {
+    fontSize: 34,
+    color: '#FF7675',
   },
   heroContent: {
     flex: 1,
-    zIndex: 2,
   },
-  heroBadge: {
+  livePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: 'rgba(0,0,0,0.35)',
+    backgroundColor: 'rgba(31, 157, 85, 0.25)',
     paddingHorizontal: 8,
     paddingVertical: 2,
-    borderRadius: 6,
-    marginBottom: 6,
+    borderRadius: 10,
+    marginBottom: 4,
+    gap: 5,
   },
-  heroBadgeText: {
-    fontSize: 9.5,
-    fontWeight: '900',
-    color: '#F1C40F',
-    letterSpacing: 0.8,
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#5CF27A',
+  },
+  liveText: {
+    fontSize: 10.5,
+    fontWeight: '800',
+    color: '#5CF27A',
   },
   heroTitle: {
-    fontSize: 18,
-    fontWeight: '900',
+    fontSize: 20,
+    fontWeight: '800',
     color: '#FFFFFF',
-    marginBottom: 4,
   },
-  heroSubtitle: {
-    fontSize: 11.5,
-    fontWeight: '500',
-    color: '#FFD2D2',
-    lineHeight: 16,
-    marginBottom: 12,
-  },
-  heroActionBtn: {
-    alignSelf: 'flex-start',
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  heroActionGradient: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-  },
-  heroActionText: {
-    fontSize: 11.5,
-    fontWeight: '900',
-    color: '#1C1204',
-    letterSpacing: 0.5,
-  },
-  heroEmblem: {
-    position: 'absolute',
-    right: -10,
-    bottom: -15,
-    opacity: 0.25,
-  },
-  heroEmblemText: {
-    fontSize: 110,
-  },
-  sectionHeader: {
-    marginBottom: 12,
+  heroSub: {
+    fontSize: 12,
+    color: '#FFCDD2',
+    marginTop: 2,
   },
   sectionTitle: {
     fontSize: 12,
-    fontWeight: '900',
-    color: '#E74C3C',
-    letterSpacing: 1,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    marginBottom: 12,
   },
-  tilesGrid: {
+  grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
     marginBottom: 16,
   },
-  tileCard: {
+  modeTile: {
     width: TILE_WIDTH,
-    borderRadius: 18,
-    overflow: 'hidden',
+    borderRadius: 20,
     borderWidth: 1.5,
-  },
-  tileCardFull: {
-    width: '100%',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 3,
   },
   tileGradient: {
-    padding: 14,
-    minHeight: 130,
+    padding: 16,
+    minHeight: 124,
     justifyContent: 'space-between',
   },
-  tileTopRow: {
+  tileHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'flex-start',
   },
   tileGlyph: {
-    fontSize: 26,
+    fontSize: 28,
   },
-  tileBadgeWrap: {
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
-  },
-  tileBadgeText: {
-    fontSize: 8.5,
-    fontWeight: '900',
-    color: '#FFFFFF',
-  },
-  tileBottom: {
-    marginTop: 10,
+  tileBadge: {
+    fontSize: 9.5,
+    fontWeight: '800',
   },
   tileTitle: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '800',
+    marginTop: 10,
   },
-  tileSub: {
-    fontSize: 10.5,
-    fontWeight: '600',
-    color: '#E0E0E0',
+  tileSubtitle: {
+    fontSize: 11,
     marginTop: 2,
+    lineHeight: 15,
   },
-  guideCard: {
+  rulesLinkCard: {
     borderRadius: 18,
-    overflow: 'hidden',
     borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.15)',
+    overflow: 'hidden',
+    marginBottom: 16,
   },
-  guideGradient: {
+  rulesGradient: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     padding: 16,
-    gap: 12,
   },
-  guideIcon: {
+  rulesLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  rulesIcon: {
     fontSize: 26,
   },
-  guideTitle: {
-    fontSize: 14,
+  rulesTitle: {
+    fontSize: 15,
     fontWeight: '800',
-    color: '#FFFFFF',
   },
-  guideSub: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#A0B2A6',
+  rulesSub: {
+    fontSize: 11.5,
     marginTop: 2,
   },
-  guideArrow: {
-    fontSize: 18,
-    fontWeight: '800',
+  rulesChevron: {
+    fontSize: 24,
+    fontWeight: '600',
     color: '#E74C3C',
+    marginLeft: 8,
+  },
+  statsCard: {
+    borderRadius: 20,
+    padding: 18,
+    borderWidth: 1,
+  },
+  statsHeader: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 14,
+    textAlign: 'center',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  statBox: {
+    alignItems: 'center',
+  },
+  statValue: {
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  statLabel: {
+    fontSize: 11,
+    color: '#95A5A6',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  statDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: 'rgba(255,255,255,0.08)',
   },
 });
 

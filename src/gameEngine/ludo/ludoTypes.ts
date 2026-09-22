@@ -7,7 +7,7 @@ export type TokenStatus = 'home' | 'active' | 'finished';
 
 export type LudoGameMode = 'computer' | 'quick_match' | 'private' | 'local';
 export type LudoDifficulty = 'easy' | 'medium' | 'hard';
-export type LudoBoardType = '4player' | '6player';
+export type LudoBoardType = '4player' | '5player' | '6player';
 
 export interface LudoToken {
   id: string; // e.g. 'red_0', 'red_1'

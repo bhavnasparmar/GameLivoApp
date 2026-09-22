@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   TextInput,
   RefreshControl,
-  Animated,
   Dimensions,
   StatusBar,
 } from 'react-native';
@@ -25,19 +24,12 @@ import { gameService } from '../../../services/games/gameService';
 import { Game, GameId } from '../../../types/game';
 import { GAMES } from '../../../constants/gameConstants';
 import { ROUTES } from '../../../navigation/routes';
+import GameCard, { GameCardMeta } from '../../../components/cards/GameCard/GameCard';
 
 const { width } = Dimensions.get('window');
 const TILE_WIDTH = (width - 40 - 14) / 2;
 
-interface GameCardMeta {
-  id: GameId;
-  name: string;
-  glyph: string;
-  tag: string;
-  onlineCount: string;
-  gradient: string[];
-  route: string;
-}
+// GameCardMeta is now imported from GameCard component
 
 const GAME_CARDS: GameCardMeta[] = [
   {
@@ -160,7 +152,8 @@ export const GameHubScreen: React.FC = () => {
     setRefreshing(false);
   };
 
-  const handleOpenGame = (card: GameCardMeta) => {
+  // useCallback: handleOpenGame sirf tab naya function banayega jab activeGames ya dispatch change ho
+  const handleOpenGame = useCallback((card: GameCardMeta) => {
     const matchedGame = activeGames.find(g => g.id === card.id) || {
       id: card.id,
       name: card.name,
@@ -189,10 +182,15 @@ export const GameHubScreen: React.FC = () => {
         }
       }
     }
-  };
+  }, [activeGames, dispatch, navigation]);
 
-  const filteredCards = GAME_CARDS.filter(card =>
-    card.name.toLowerCase().includes(searchQuery.trim().toLowerCase()),
+  // useMemo: filteredCards sirf tab recalculate hoga jab searchQuery change ho
+  const filteredCards = useMemo(
+    () =>
+      GAME_CARDS.filter(card =>
+        card.name.toLowerCase().includes(searchQuery.trim().toLowerCase()),
+      ),
+    [searchQuery],
   );
 
   return (
@@ -340,37 +338,14 @@ export const GameHubScreen: React.FC = () => {
           </TouchableOpacity>
         </View>
 
-        {/* 2-Column Game Grid */}
+        {/* 2-Column Game Grid — GameCard is memoized, sirf changed cards re-render honge */}
         <View style={styles.gameGrid}>
           {filteredCards.map(card => (
-            <TouchableOpacity
+            <GameCard
               key={card.id}
-              activeOpacity={0.88}
-              onPress={() => handleOpenGame(card)}
-              style={styles.tileWrapper}
-            >
-              <LinearGradient
-                colors={card.gradient}
-                style={styles.tile}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-              >
-                {/* Live Online Badge */}
-                <View style={styles.tileLiveBadge}>
-                  <View style={styles.pulseDot} />
-                  <Text style={styles.tileLiveText}>{card.onlineCount}</Text>
-                </View>
-
-                {/* Big Watermarked Glyph */}
-                <Text style={styles.tileGlyph}>{card.glyph}</Text>
-
-                {/* Title & Tag */}
-                <View style={styles.tileBottom}>
-                  <Text style={styles.tileTitle}>{card.name}</Text>
-                  <Text style={styles.tileTag}>{card.tag}</Text>
-                </View>
-              </LinearGradient>
-            </TouchableOpacity>
+              card={card}
+              onPress={handleOpenGame}
+            />
           ))}
         </View>
 

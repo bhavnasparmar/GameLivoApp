@@ -31,6 +31,7 @@ import { soundService } from '../../../../services/sound/soundService';
 import { vibrationService } from '../../../../services/vibration/vibrationService';
 
 import LudoBoard4P from '../components/LudoBoard4P';
+import LudoBoard5P from '../components/LudoBoard5P';
 import LudoBoard6P from '../components/LudoBoard6P';
 import LudoPlayerBadge from '../components/LudoPlayerBadge';
 import LudoActionVFX from '../components/LudoActionVFX';
@@ -252,13 +253,13 @@ export const LudoGameScreen: React.FC = () => {
         steps.push(startCoord);
       } else {
         const fromStep = token.stepCount;
-        const toStep = Math.min(57, fromStep + diceVal);
+        const toStep = Math.min(56, fromStep + diceVal);
         for (let s = fromStep; s <= toStep; s++) {
           steps.push(
             LudoPath.get4PCellCoordinates(
               s,
               currentPlayer.color,
-              s >= 57 ? 'finished' : 'active',
+              s >= 56 ? 'finished' : 'active',
               token.tokenIndex,
             ),
           );
@@ -305,11 +306,140 @@ export const LudoGameScreen: React.FC = () => {
 
   const EMOTE_LIST = ['😂', '🔥', '👏', '👑', '😱', '🎲', '😎', '🎉'];
 
-  // Map 4 Players to Top-Left (Red), Top-Right (Yellow), Bottom-Left (Green), Bottom-Right (Blue)
-  const p1Red = gameState.players.find((p) => p.color === 'red') || gameState.players[0];
-  const p2Yellow = gameState.players.find((p) => p.color === 'yellow') || gameState.players[1];
-  const p3Green = gameState.players.find((p) => p.color === 'green') || gameState.players[2];
-  const p4Blue = gameState.players.find((p) => p.color === 'blue') || gameState.players[3];
+  const renderPlayerBadge = (player?: LudoPlayer, customWidth?: number | string) => {
+    if (!player) return null;
+    const isCurrent = player.id === gameState.currentPlayerId;
+    return (
+      <LudoPlayerBadge
+        key={player.id}
+        player={player}
+        badgeColor={player.color}
+        placeholderText={player.name}
+        isCurrentTurn={isCurrent}
+        canRoll={isCurrent && gameState.canRoll && !gameState.diceRolled}
+        isRolling={isRolling && isCurrent}
+        currentDiceValue={isCurrent ? gameState.currentDiceValue : null}
+        timeLeft={timeLeft}
+        onRollDice={handleDiceRoll}
+        isMyTurn={isPlayerHumanTurn(player)}
+        containerWidth={customWidth}
+      />
+    );
+  };
+
+  // Identify players for classic board layouts
+  const p1Red = gameState.players.find((p) => p.color === 'red');
+  const p2Green = gameState.players.find((p) => p.color === 'green');
+  const p3Yellow = gameState.players.find((p) => p.color === 'yellow');
+  const p4Blue = gameState.players.find((p) => p.color === 'blue');
+  const p5Purple = gameState.players.find((p) => p.color === 'purple');
+  const p6Orange = gameState.players.find((p) => p.color === 'orange');
+
+  // Render Top and Bottom Badges Row depending on player count (1v1, 3P, 4P, 5P, 6P)
+  const renderTopBadges = () => {
+    if (gameState.players.length === 2) {
+      // 1v1 Duel: Opponent at Top
+      return (
+        <View style={styles.singleBadgeRow}>
+          {renderPlayerBadge(gameState.players[1], width - 24)}
+        </View>
+      );
+    }
+    if (gameState.players.length === 3) {
+      return (
+        <View style={styles.badgesRow}>
+          {renderPlayerBadge(gameState.players[0])}
+          {renderPlayerBadge(gameState.players[1])}
+        </View>
+      );
+    }
+    if (gameState.players.length === 4) {
+      return (
+        <View style={styles.badgesRow}>
+          {renderPlayerBadge(p1Red || gameState.players[0])}
+          {renderPlayerBadge(p2Green || gameState.players[1])}
+        </View>
+      );
+    }
+    if (gameState.players.length === 5) {
+      // 5-Player Pentagonal Top Row: Red (Left) & Green (Right)
+      const itemWidth = (width - 24 - 8) / 2;
+      return (
+        <View style={styles.badgesRow}>
+          {renderPlayerBadge(p1Red || gameState.players[0], itemWidth)}
+          {renderPlayerBadge(p2Green || gameState.players[1], itemWidth)}
+        </View>
+      );
+    }
+    if (gameState.players.length === 6) {
+      // 6-Player Hexagonal Top Row: Red (Left) & Green (Right)
+      const itemWidth = (width - 24 - 8) / 2;
+      return (
+        <View style={styles.badgesRow}>
+          {renderPlayerBadge(p1Red || gameState.players[0], itemWidth)}
+          {renderPlayerBadge(p2Green || gameState.players[1], itemWidth)}
+        </View>
+      );
+    }
+    return null;
+  };
+
+  const renderBottomBadges = () => {
+    if (gameState.players.length === 2) {
+      // 1v1 Duel: User (You) at Bottom
+      return (
+        <View style={styles.singleBadgeRow}>
+          {renderPlayerBadge(gameState.players[0], width - 24)}
+        </View>
+      );
+    }
+    if (gameState.players.length === 3) {
+      return (
+        <View style={styles.badgesRow}>
+          {renderPlayerBadge(gameState.players[2])}
+          <View style={{ width: (width - 32) / 2 }} />
+        </View>
+      );
+    }
+    if (gameState.players.length === 4) {
+      return (
+        <View style={styles.badgesRow}>
+          {renderPlayerBadge(p4Blue || gameState.players[3])}
+          {renderPlayerBadge(p3Yellow || gameState.players[2])}
+        </View>
+      );
+    }
+    if (gameState.players.length === 5) {
+      // 5-Player Pentagonal Bottom Row: Purple (Left), Blue (Center), Yellow (Right)
+      const itemWidth = (width - 24 - 12) / 3;
+      return (
+        <View style={styles.multiBadgesRow}>
+          {renderPlayerBadge(p5Purple || gameState.players[4], itemWidth)}
+          {renderPlayerBadge(p4Blue || gameState.players[3], itemWidth)}
+          {renderPlayerBadge(p3Yellow || gameState.players[2], itemWidth)}
+        </View>
+      );
+    }
+    if (gameState.players.length === 6) {
+      // 6-Player Hexagonal Bottom Rows:
+      // Row 1: Purple (Left) & Yellow (Right)
+      // Row 2: Orange (Left) & Blue (Right)
+      const itemWidth = (width - 24 - 8) / 2;
+      return (
+        <View style={{ width: '100%' }}>
+          <View style={[styles.badgesRow, { marginBottom: 6 }]}>
+            {renderPlayerBadge(p5Purple || gameState.players[4], itemWidth)}
+            {renderPlayerBadge(p3Yellow || gameState.players[2], itemWidth)}
+          </View>
+          <View style={styles.badgesRow}>
+            {renderPlayerBadge(p6Orange || gameState.players[5], itemWidth)}
+            {renderPlayerBadge(p4Blue || gameState.players[3], itemWidth)}
+          </View>
+        </View>
+      );
+    }
+    return null;
+  };
 
   return (
     <LinearGradient
@@ -330,7 +460,13 @@ export const LudoGameScreen: React.FC = () => {
         </TouchableOpacity>
 
         <View style={styles.titleWrap}>
-          <Text style={styles.headerCenterTitle}>PLAY · ROLL · WIN</Text>
+          <Text style={styles.headerCenterTitle}>
+            {gameState.players.length === 2
+              ? '1v1 LUDO DUEL'
+              : gameState.players.length === 5
+              ? '5-PLAYER PENTAGON'
+              : 'PLAY · ROLL · WIN'}
+          </Text>
         </View>
 
         <View style={styles.headerRightActions}>
@@ -370,39 +506,20 @@ export const LudoGameScreen: React.FC = () => {
         contentContainerStyle={[styles.mainLayout, { paddingBottom: insets.bottom + 10 }]}
         showsVerticalScrollIndicator={false}
       >
-        {/* Top Badges Row: Player 1 (Red) on Left & Player 2 (Yellow) on Right */}
-        <View style={styles.badgesRow}>
-          <LudoPlayerBadge
-            player={p1Red}
-            badgeColor="red"
-            placeholderText="Player 1"
-            isCurrentTurn={p1Red?.id === gameState.currentPlayerId}
-            canRoll={p1Red?.id === gameState.currentPlayerId && gameState.canRoll && !gameState.diceRolled}
-            isRolling={isRolling && p1Red?.id === gameState.currentPlayerId}
-            currentDiceValue={p1Red?.id === gameState.currentPlayerId ? gameState.currentDiceValue : null}
-            timeLeft={timeLeft}
-            onRollDice={handleDiceRoll}
-            isMyTurn={isPlayerHumanTurn(p1Red)}
-          />
-
-          <LudoPlayerBadge
-            player={p2Yellow}
-            badgeColor="yellow"
-            placeholderText="Player 2"
-            isCurrentTurn={p2Yellow?.id === gameState.currentPlayerId}
-            canRoll={p2Yellow?.id === gameState.currentPlayerId && gameState.canRoll && !gameState.diceRolled}
-            isRolling={isRolling && p2Yellow?.id === gameState.currentPlayerId}
-            currentDiceValue={p2Yellow?.id === gameState.currentPlayerId ? gameState.currentDiceValue : null}
-            timeLeft={timeLeft}
-            onRollDice={handleDiceRoll}
-            isMyTurn={isPlayerHumanTurn(p2Yellow)}
-          />
-        </View>
+        {/* Top Badges Row */}
+        {renderTopBadges()}
 
         {/* Center Ludo Board */}
         <View style={styles.boardWrap}>
           {gameState.boardType === '6player' ? (
             <LudoBoard6P
+              gameState={gameState}
+              selectableTokenIds={selectableTokenIds}
+              onSelectToken={handleMoveToken}
+              activeColor={currentPlayer.color}
+            />
+          ) : gameState.boardType === '5player' ? (
+            <LudoBoard5P
               gameState={gameState}
               selectableTokenIds={selectableTokenIds}
               onSelectToken={handleMoveToken}
@@ -421,34 +538,8 @@ export const LudoGameScreen: React.FC = () => {
           )}
         </View>
 
-        {/* Bottom Badges Row: Player 3 (Green) on Left & Player 4 (Blue) on Right */}
-        <View style={styles.badgesRow}>
-          <LudoPlayerBadge
-            player={p3Green}
-            badgeColor="green"
-            placeholderText="Player 3"
-            isCurrentTurn={p3Green?.id === gameState.currentPlayerId}
-            canRoll={p3Green?.id === gameState.currentPlayerId && gameState.canRoll && !gameState.diceRolled}
-            isRolling={isRolling && p3Green?.id === gameState.currentPlayerId}
-            currentDiceValue={p3Green?.id === gameState.currentPlayerId ? gameState.currentDiceValue : null}
-            timeLeft={timeLeft}
-            onRollDice={handleDiceRoll}
-            isMyTurn={isPlayerHumanTurn(p3Green)}
-          />
-
-          <LudoPlayerBadge
-            player={p4Blue}
-            badgeColor="blue"
-            placeholderText="Player 4"
-            isCurrentTurn={p4Blue?.id === gameState.currentPlayerId}
-            canRoll={p4Blue?.id === gameState.currentPlayerId && gameState.canRoll && !gameState.diceRolled}
-            isRolling={isRolling && p4Blue?.id === gameState.currentPlayerId}
-            currentDiceValue={p4Blue?.id === gameState.currentPlayerId ? gameState.currentDiceValue : null}
-            timeLeft={timeLeft}
-            onRollDice={handleDiceRoll}
-            isMyTurn={isPlayerHumanTurn(p4Blue)}
-          />
-        </View>
+        {/* Bottom Badges Row */}
+        {renderBottomBadges()}
       </ScrollView>
 
       {/* Quick Emote Picker Modal */}
@@ -564,6 +655,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginVertical: 6,
+  },
+  singleBadgeRow: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 6,
+  },
+  multiBadgesRow: {
+    width: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginVertical: 6,
+    gap: 6,
   },
   boardWrap: {
     marginVertical: 4,

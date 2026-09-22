@@ -28,6 +28,8 @@ interface LudoPlayerBadgeProps {
   isMyTurn?: boolean;
   placeholderText?: string;
   badgeColor?: LudoPlayerColor;
+  containerWidth?: number | string;
+  containerStyle?: any;
 }
 
 // Styled Illustrated Avatars matching the uploaded reference image
@@ -80,7 +82,6 @@ const renderPlayerAvatar = (color: LudoPlayerColor) => {
         </View>
       );
     case 'blue':
-    default:
       return (
         <View style={avatarStyles.avatarContainer}>
           {/* Girl with Dark Hair & Blue Shirt */}
@@ -93,7 +94,39 @@ const renderPlayerAvatar = (color: LudoPlayerColor) => {
             </View>
             <View style={avatarStyles.smileMouth} />
           </View>
-          <View style={[avatarStyles.shirtBody, { backgroundColor: '#3498DB' }]} />
+          <View style={[avatarStyles.shirtBody, { backgroundColor: '#0288D1' }]} />
+        </View>
+      );
+    case 'purple':
+      return (
+        <View style={avatarStyles.avatarContainer}>
+          {/* Girl with Purple Band & Shirt */}
+          <View style={[avatarStyles.longHairBack, { backgroundColor: '#4A148C' }]} />
+          <View style={[avatarStyles.headBase, { backgroundColor: '#FAD7A0' }]}>
+            <View style={[avatarStyles.hairDarkBangs, { backgroundColor: '#4A148C' }]} />
+            <View style={avatarStyles.faceEyes}>
+              <View style={avatarStyles.eyeDot} />
+              <View style={avatarStyles.eyeDot} />
+            </View>
+            <View style={avatarStyles.smileMouth} />
+          </View>
+          <View style={[avatarStyles.shirtBody, { backgroundColor: '#8E24AA' }]} />
+        </View>
+      );
+    case 'orange':
+    default:
+      return (
+        <View style={avatarStyles.avatarContainer}>
+          {/* Boy with Orange Cap & Shirt */}
+          <View style={[avatarStyles.headBase, { backgroundColor: '#FAD7A0' }]}>
+            <View style={[avatarStyles.hairBrownShort, { backgroundColor: '#E65100' }]} />
+            <View style={avatarStyles.faceEyes}>
+              <View style={avatarStyles.eyeDot} />
+              <View style={avatarStyles.eyeDot} />
+            </View>
+            <View style={avatarStyles.smileMouth} />
+          </View>
+          <View style={[avatarStyles.shirtBody, { backgroundColor: '#FB8C00' }]} />
         </View>
       );
   }
@@ -199,7 +232,11 @@ export const LudoPlayerBadge: React.FC<LudoPlayerBadgeProps> = ({
   isMyTurn = false,
   placeholderText = 'Player',
   badgeColor = 'red',
+  containerWidth,
+  containerStyle,
 }) => {
+  if (!player) return null;
+
   const colorKey = player?.color || badgeColor;
   const theme = LUDO_COLOR_THEMES[colorKey] || LUDO_COLOR_THEMES.red;
 
@@ -306,13 +343,17 @@ export const LudoPlayerBadge: React.FC<LudoPlayerBadgeProps> = ({
   const getBadgeColors = (): [string, string] => {
     switch (colorKey) {
       case 'red':
-        return ['#E74C3C', '#C0392B'];
-      case 'yellow':
-        return ['#F1C40F', '#D4AC0D'];
+        return ['#E53935', '#C62828'];
       case 'green':
-        return ['#27AE60', '#1E8449'];
+        return ['#00A859', '#1B5E20'];
+      case 'yellow':
+        return ['#FFC107', '#F57F17'];
       case 'blue':
-        return ['#2980B9', '#1F618D'];
+        return ['#0288D1', '#0D47A1'];
+      case 'purple':
+        return ['#8E24AA', '#4A148C'];
+      case 'orange':
+        return ['#FB8C00', '#E65100'];
       default:
         return [theme.primary, theme.dark];
     }
@@ -323,10 +364,11 @@ export const LudoPlayerBadge: React.FC<LudoPlayerBadgeProps> = ({
       style={[
         styles.badgeOuterContainer,
         {
-          width: BADGE_WIDTH,
+          width: containerWidth || BADGE_WIDTH,
           borderColor: isCurrentTurn ? '#FFFFFF' : 'rgba(0,0,0,0.4)',
           transform: [{ scale: isCurrentTurn ? pulseAnim : 1 }],
         },
+        containerStyle,
       ]}
     >
       <TouchableOpacity

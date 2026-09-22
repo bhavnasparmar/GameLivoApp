@@ -9,9 +9,11 @@ import {
 } from './ludoTypes';
 import {
   LUDO_4P_COLORS,
+  LUDO_5P_COLORS,
   LUDO_6P_COLORS,
   LUDO_TOKENS_PER_PLAYER,
   LUDO_4P_WIN_STEP,
+  LUDO_5P_WIN_STEP,
   LUDO_6P_WIN_STEP,
   LUDO_DEFAULT_TURN_TIME,
   LUDO_BOT_PROFILES,
@@ -93,8 +95,14 @@ export class LudoEngineImpl implements BaseGameEngine<LudoGameState, LudoMove> {
     const matchId = config.matchId || `LUDO-${Math.floor(1000 + Math.random() * 9000)}`;
     const mode: LudoGameMode = config.mode || 'computer';
     const totalCount = Math.max(1, Math.min(6, config.playerCount || 4));
-    const boardType: LudoBoardType = totalCount > 4 ? '6player' : '4player';
-    const colorPalette = boardType === '6player' ? LUDO_6P_COLORS : LUDO_4P_COLORS;
+    const boardType: LudoBoardType =
+      totalCount === 5 ? '5player' : totalCount > 5 ? '6player' : '4player';
+    const colorPalette =
+      boardType === '5player'
+        ? LUDO_5P_COLORS
+        : boardType === '6player'
+        ? LUDO_6P_COLORS
+        : LUDO_4P_COLORS;
 
     // Build player list
     let playerList: LudoPlayer[] = [];
@@ -233,7 +241,12 @@ export class LudoEngineImpl implements BaseGameEngine<LudoGameState, LudoMove> {
       return { newState: state, result: { isValid: false, reason: 'Invalid token or dice' } };
     }
 
-    const maxWinStep = state.boardType === '4player' ? LUDO_4P_WIN_STEP : LUDO_6P_WIN_STEP;
+    const maxWinStep =
+      state.boardType === '5player'
+        ? LUDO_5P_WIN_STEP
+        : state.boardType === '4player'
+        ? LUDO_4P_WIN_STEP
+        : LUDO_6P_WIN_STEP;
     let nextState: LudoGameState = JSON.parse(JSON.stringify(state));
     const targetPlayer = nextState.players.find((p) => p.id === playerId)!;
     const targetToken = targetPlayer.tokens.find((t) => t.id === move.tokenId)!;

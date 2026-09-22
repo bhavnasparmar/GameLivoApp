@@ -7,7 +7,6 @@ import {
   Animated,
   Easing,
 } from 'react-native';
-import LinearGradient from 'react-native-linear-gradient';
 import {
   LudoGameState,
   LudoPlayer,
@@ -113,26 +112,26 @@ export const LudoBoard4P: React.FC<LudoBoard4PProps> = ({
             Animated.parallel([
               Animated.timing(hopX, {
                 toValue: targetX,
-                duration: 150,
+                duration: 140,
                 easing: Easing.linear,
                 useNativeDriver: true,
               }),
               Animated.timing(hopY, {
                 toValue: targetY,
-                duration: 150,
+                duration: 140,
                 easing: Easing.linear,
                 useNativeDriver: true,
               }),
               Animated.sequence([
                 Animated.timing(hopArc, {
                   toValue: -18,
-                  duration: 75,
+                  duration: 70,
                   easing: Easing.out(Easing.quad),
                   useNativeDriver: true,
                 }),
                 Animated.timing(hopArc, {
                   toValue: 0,
-                  duration: 75,
+                  duration: 70,
                   easing: Easing.in(Easing.quad),
                   useNativeDriver: true,
                 }),
@@ -168,28 +167,29 @@ export const LudoBoard4P: React.FC<LudoBoard4PProps> = ({
     };
   }, [activeMovingTokenId, movingStepSteps]);
 
-  // Helper to render Yard Box matching the image
+  // Yard Box (6x6) with White Recessed Bed and 4 Token Circles
   const renderHomeYard = (
     color: LudoPlayerColor,
     positionStyle: any,
   ) => {
     const player = gameState.players.find((p) => p.color === color);
+    const isYardActive = Boolean(player);
     const homeTokens = player?.tokens.filter((t) => t.status === 'home') || [];
 
-    // Colors matching uploaded reference image
-    const yardThemeMap: Record<LudoPlayerColor, { bg: string; innerBg: string; rim: string }> = {
-      red: { bg: '#E53935', innerBg: '#FFEBEE', rim: '#D32F2F' },
-      yellow: { bg: '#FDD835', innerBg: '#FFFDE7', rim: '#FBC02D' },
-      green: { bg: '#43A047', innerBg: '#E8F8F5', rim: '#2E7D32' },
-      blue: { bg: '#1E88E5', innerBg: '#E3F2FD', rim: '#1565C0' },
-      orange: { bg: '#FB8C00', innerBg: '#FFF3E0', rim: '#E65100' },
-      purple: { bg: '#8E24AA', innerBg: '#F3E5F5', rim: '#4A148C' },
+    // Authentic Ludo Colors
+    const yardThemeMap: Record<LudoPlayerColor, { bg: string; innerBg: string; rim: string; slotBg: string }> = {
+      red: { bg: '#E53935', innerBg: '#FFFFFF', rim: '#C62828', slotBg: '#FFEBEE' },
+      green: { bg: '#00A859', innerBg: '#FFFFFF', rim: '#1B5E20', slotBg: '#E8F8F0' },
+      yellow: { bg: '#FFC107', innerBg: '#FFFFFF', rim: '#F57F17', slotBg: '#FFFDE7' },
+      blue: { bg: '#0288D1', innerBg: '#FFFFFF', rim: '#0D47A1', slotBg: '#E1F5FE' },
+      orange: { bg: '#FB8C00', innerBg: '#FFFFFF', rim: '#E65100', slotBg: '#FFF3E0' },
+      purple: { bg: '#8E24AA', innerBg: '#FFFFFF', rim: '#4A148C', slotBg: '#F3E5F5' },
     };
     const yardTheme = yardThemeMap[color] || yardThemeMap.red;
 
     return (
-      <View style={[styles.yardOuterContainer, positionStyle, { backgroundColor: yardTheme.bg }]}>
-        {/* Rounded Recessed Inner Bed */}
+      <View style={[styles.yardOuterContainer, positionStyle, { backgroundColor: yardTheme.bg, opacity: isYardActive ? 1 : 0.4 }]}>
+        {/* Rounded Recessed White Bed */}
         <View style={[styles.yardInnerBed, { backgroundColor: yardTheme.innerBg, borderColor: yardTheme.rim }]}>
           <View style={styles.yardSlotsGrid}>
             {[0, 1, 2, 3].map((slotIdx) => {
@@ -200,7 +200,7 @@ export const LudoBoard4P: React.FC<LudoBoard4PProps> = ({
               return (
                 <View
                   key={slotIdx}
-                  style={styles.yardSlotRing}
+                  style={[styles.yardSlotRing, { backgroundColor: yardTheme.slotBg, borderColor: yardTheme.bg }]}
                 >
                   {token && !isHiddenBecauseAnimating ? (
                     <LudoTokenView
@@ -210,7 +210,7 @@ export const LudoBoard4P: React.FC<LudoBoard4PProps> = ({
                       onPress={isSelectable ? () => onSelectToken(token.id) : undefined}
                     />
                   ) : (
-                    <View style={[styles.emptySlotBezel, { backgroundColor: yardTheme.innerBg }]} />
+                    <View style={[styles.emptySlotBezel, { borderColor: yardTheme.rim }]} />
                   )}
                 </View>
               );
@@ -221,44 +221,43 @@ export const LudoBoard4P: React.FC<LudoBoard4PProps> = ({
     );
   };
 
-  // Helper to check cell type matching the uploaded image
+  // Helper to check cell type matching classic Ludo King layout
   const getCellMeta = (row: number, col: number) => {
-    // Check if in Home Yard areas (6x6 corners)
+    // 1. Home Yard Areas (6x6 Corners)
     if (row < 6 && col < 6) return { isYard: true, color: 'red' };
-    if (row < 6 && col > 8) return { isYard: true, color: 'yellow' };
-    if (row > 8 && col < 6) return { isYard: true, color: 'green' };
-    if (row > 8 && col > 8) return { isYard: true, color: 'blue' };
+    if (row < 6 && col > 8) return { isYard: true, color: 'green' };
+    if (row > 8 && col > 8) return { isYard: true, color: 'yellow' };
+    if (row > 8 && col < 6) return { isYard: true, color: 'blue' };
 
-    // Center Home area (3x3: rows 6-8, cols 6-8)
+    // 2. Center Home area (3x3: rows 6-8, cols 6-8)
     if (row >= 6 && row <= 8 && col >= 6 && col <= 8) {
       return { isCenter: true };
     }
 
-    // Home Stretches matching the image
-    if (col === 7 && row >= 1 && row <= 5) return { isHomeStretch: true, color: 'red' };
-    if (row === 7 && col >= 1 && col <= 5) return { isHomeStretch: true, color: 'green' };
-    if (col === 7 && row >= 9 && row <= 13) return { isHomeStretch: true, color: 'green' };
+    // 3. Home Stretch Corridors (5 colored cells each)
+    if (row === 7 && col >= 1 && col <= 5) return { isHomeStretch: true, color: 'red' };
+    if (col === 7 && row >= 1 && row <= 5) return { isHomeStretch: true, color: 'green' };
     if (row === 7 && col >= 9 && col <= 13) return { isHomeStretch: true, color: 'yellow' };
+    if (col === 7 && row >= 9 && row <= 13) return { isHomeStretch: true, color: 'blue' };
 
-    // Colored Start Cells
-    if (row === 1 && col === 6) return { isStart: true, color: 'red' };
-    if (row === 8 && col === 1) return { isStart: true, color: 'green' };
-    if (row === 13 && col === 8) return { isStart: true, color: 'blue' };
-    if (row === 6 && col === 13) return { isStart: true, color: 'yellow' };
-    if (row === 7 && col === 13) return { isStart: true, color: 'blue' };
+    // 4. Colored Start Cells (with start arrows/stars)
+    if (row === 6 && col === 1) return { isStart: true, color: 'red', arrow: '➡' };
+    if (row === 1 && col === 8) return { isStart: true, color: 'green', arrow: '⬇' };
+    if (row === 8 && col === 13) return { isStart: true, color: 'yellow', arrow: '⬅' };
+    if (row === 13 && col === 6) return { isStart: true, color: 'blue', arrow: '⬆' };
 
-    // Start Cells with Colored Arrows matching the image
-    if (row === 0 && col === 7) return { isArrow: true, color: 'red', arrow: '⬇' };
-    if (row === 7 && col === 0) return { isArrow: true, color: 'green', arrow: '➡' };
-    if (row === 14 && col === 7) return { isArrow: true, color: 'green', arrow: '⬆' };
-    if (row === 7 && col === 14) return { isArrow: true, color: 'blue', arrow: '⬅' };
+    // 5. Corridor Entry Arrows
+    if (row === 7 && col === 0) return { isArrow: true, color: 'red', arrow: '➡' };
+    if (row === 0 && col === 7) return { isArrow: true, color: 'green', arrow: '⬇' };
+    if (row === 7 && col === 14) return { isArrow: true, color: 'yellow', arrow: '⬅' };
+    if (row === 14 && col === 7) return { isArrow: true, color: 'blue', arrow: '⬆' };
 
-    // Safe Star Squares (★)
+    // 6. Safe Star Squares (★)
     if (
       (row === 2 && col === 6) ||
-      (row === 6 && col === 2) ||
       (row === 6 && col === 12) ||
-      (row === 12 && col === 8)
+      (row === 12 && col === 8) ||
+      (row === 8 && col === 2)
     ) {
       return { isStar: true };
     }
@@ -277,24 +276,19 @@ export const LudoBoard4P: React.FC<LudoBoard4PProps> = ({
     let bgColor = '#FFFFFF';
     let borderColor = '#CBD5E1';
 
+    const colorHexMap: Record<string, string> = {
+      red: '#E53935',
+      green: '#00A859',
+      yellow: '#FFC107',
+      blue: '#0288D1',
+    };
+
     if (meta.isHomeStretch && meta.color) {
-      bgColor =
-        meta.color === 'red'
-          ? '#E53935'
-          : meta.color === 'yellow'
-          ? '#FDD835'
-          : meta.color === 'green'
-          ? '#43A047'
-          : '#1E88E5';
+      bgColor = colorHexMap[meta.color] || '#FFFFFF';
+      borderColor = 'rgba(255,255,255,0.7)';
     } else if (meta.isStart && meta.color) {
-      bgColor =
-        meta.color === 'red'
-          ? '#E53935'
-          : meta.color === 'yellow'
-          ? '#FDD835'
-          : meta.color === 'green'
-          ? '#43A047'
-          : '#1E88E5';
+      bgColor = colorHexMap[meta.color] || '#FFFFFF';
+      borderColor = '#94A3B8';
     }
 
     return (
@@ -312,20 +306,20 @@ export const LudoBoard4P: React.FC<LudoBoard4PProps> = ({
           },
         ]}
       >
-        {/* Entry Arrow */}
+        {/* Start Cell Arrow / Indicator */}
+        {meta.isStart && tokensHere.length === 0 && (
+          <Text style={[styles.startArrowText, { fontSize: CELL_SIZE * 0.65 }]}>
+            {meta.arrow}
+          </Text>
+        )}
+
+        {/* Corridor Entry Arrow */}
         {meta.isArrow && (
           <Text
             style={[
               styles.entryArrowText,
               {
-                color:
-                  meta.color === 'red'
-                    ? '#E53935'
-                    : meta.color === 'yellow'
-                    ? '#FBC02D'
-                    : meta.color === 'green'
-                    ? '#2E7D32'
-                    : '#1565C0',
+                color: colorHexMap[meta.color || 'red'] || '#E53935',
                 fontSize: CELL_SIZE * 0.7,
               },
             ]}
@@ -336,7 +330,7 @@ export const LudoBoard4P: React.FC<LudoBoard4PProps> = ({
 
         {/* Safe Star Icon */}
         {meta.isStar && tokensHere.length === 0 && (
-          <Text style={[styles.starSymbol, { fontSize: CELL_SIZE * 0.7 }]}>
+          <Text style={[styles.starSymbol, { fontSize: CELL_SIZE * 0.75 }]}>
             ★
           </Text>
         )}
@@ -378,20 +372,25 @@ export const LudoBoard4P: React.FC<LudoBoard4PProps> = ({
     );
   };
 
-  // Render Center Home 4-Triangles matching the image
+  // Render Center Home 4-Triangles (Standard Clockwise: Red=Left, Green=Top, Yellow=Right, Blue=Bottom)
   const renderCenterHome = () => {
     const centerTokens = tokensOnGrid.get('7,7') || [];
 
     return (
       <View style={styles.centerHomeContainer}>
-        {/* Top Triangle: RED */}
-        <View style={[styles.triangleTop, { borderTopColor: '#E53935' }]} />
+        {/* Left Triangle: RED */}
+        <View style={[styles.triangleLeft, { borderLeftColor: '#E53935' }]} />
+        {/* Top Triangle: GREEN */}
+        <View style={[styles.triangleTop, { borderTopColor: '#00A859' }]} />
         {/* Right Triangle: YELLOW */}
-        <View style={[styles.triangleRight, { borderRightColor: '#FDD835' }]} />
+        <View style={[styles.triangleRight, { borderRightColor: '#FFC107' }]} />
         {/* Bottom Triangle: BLUE */}
-        <View style={[styles.triangleBottom, { borderBottomColor: '#1E88E5' }]} />
-        {/* Left Triangle: GREEN */}
-        <View style={[styles.triangleLeft, { borderLeftColor: '#43A047' }]} />
+        <View style={[styles.triangleBottom, { borderBottomColor: '#0288D1' }]} />
+
+        {/* Center Golden Star Emblem */}
+        <View style={styles.centerStarEmblem}>
+          <Text style={styles.centerStarIcon}>🏆</Text>
+        </View>
 
         {/* Center Finished Tokens if any */}
         {centerTokens.length > 0 && (
@@ -421,11 +420,11 @@ export const LudoBoard4P: React.FC<LudoBoard4PProps> = ({
           },
         ]}
       >
-        {/* 4 Corner Home Yards matching uploaded image */}
+        {/* 4 Corner Home Yards (Standard Clockwise: Red=TL, Green=TR, Yellow=BR, Blue=BL) */}
         {renderHomeYard('red', { top: 0, left: 0 })}
-        {renderHomeYard('yellow', { top: 0, right: 0 })}
-        {renderHomeYard('green', { bottom: 0, left: 0 })}
-        {renderHomeYard('blue', { bottom: 0, right: 0 })}
+        {renderHomeYard('green', { top: 0, right: 0 })}
+        {renderHomeYard('yellow', { bottom: 0, right: 0 })}
+        {renderHomeYard('blue', { bottom: 0, left: 0 })}
 
         {/* Center Home 3x3 */}
         {renderCenterHome()}
@@ -466,11 +465,11 @@ const styles = StyleSheet.create({
   boardOuterBevel: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 7,
-    borderRadius: 26,
-    backgroundColor: '#1565C0',
+    padding: 8,
+    borderRadius: 24,
+    backgroundColor: '#0F172A',
     borderWidth: 2,
-    borderColor: '#0D47A1',
+    borderColor: '#334155',
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.65,
@@ -479,7 +478,7 @@ const styles = StyleSheet.create({
   },
   boardContainer: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 18,
+    borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 1.5,
     borderColor: '#94A3B8',
@@ -489,7 +488,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: CELL_SIZE * 6,
     height: CELL_SIZE * 6,
-    padding: CELL_SIZE * 0.6,
+    padding: CELL_SIZE * 0.65,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
@@ -498,8 +497,8 @@ const styles = StyleSheet.create({
   yardInnerBed: {
     flex: 1,
     width: '100%',
-    borderRadius: 18,
-    borderWidth: 2,
+    borderRadius: 16,
+    borderWidth: 2.5,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000000',
@@ -509,8 +508,8 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   yardSlotsGrid: {
-    width: '85%',
-    height: '85%',
+    width: '84%',
+    height: '84%',
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
@@ -519,15 +518,18 @@ const styles = StyleSheet.create({
   yardSlotRing: {
     width: CELL_SIZE * 1.6,
     height: CELL_SIZE * 1.6,
+    borderRadius: (CELL_SIZE * 1.6) / 2,
+    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
   emptySlotBezel: {
-    width: CELL_SIZE * 1.2,
-    height: CELL_SIZE * 1.2,
-    borderRadius: (CELL_SIZE * 1.2) / 2,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.1)',
+    width: CELL_SIZE * 1.1,
+    height: CELL_SIZE * 1.1,
+    borderRadius: (CELL_SIZE * 1.1) / 2,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    opacity: 0.4,
   },
   cell: {
     position: 'absolute',
@@ -535,12 +537,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  startArrowText: {
+    color: '#FFFFFF',
+    fontWeight: '900',
+    textShadowColor: 'rgba(0,0,0,0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
   entryArrowText: {
     fontWeight: '900',
   },
   starSymbol: {
-    color: '#94A3B8',
+    color: '#F59E0B',
     fontWeight: '900',
+    textShadowColor: 'rgba(0,0,0,0.2)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
   },
   tokenStackContainer: {
     width: '100%',
@@ -559,6 +571,18 @@ const styles = StyleSheet.create({
     height: CELL_SIZE * 3,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  triangleLeft: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 0,
+    height: 0,
+    borderTopWidth: (CELL_SIZE * 3) / 2,
+    borderBottomWidth: (CELL_SIZE * 3) / 2,
+    borderLeftWidth: (CELL_SIZE * 3) / 2,
+    borderTopColor: 'transparent',
+    borderBottomColor: 'transparent',
   },
   triangleTop: {
     position: 'absolute',
@@ -596,18 +620,25 @@ const styles = StyleSheet.create({
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
   },
-  triangleLeft: {
+  centerStarEmblem: {
     position: 'absolute',
-    top: 0,
-    left: 0,
-    width: 0,
-    height: 0,
-    borderTopWidth: (CELL_SIZE * 3) / 2,
-    borderBottomWidth: (CELL_SIZE * 3) / 2,
-    borderLeftWidth: (CELL_SIZE * 3) / 2,
-    borderTopColor: 'transparent',
-    borderBottomColor: 'transparent',
-    borderRightColor: 'transparent',
+    width: CELL_SIZE * 1.1,
+    height: CELL_SIZE * 1.1,
+    borderRadius: (CELL_SIZE * 1.1) / 2,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1.5,
+    borderColor: '#F59E0B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
+  },
+  centerStarIcon: {
+    fontSize: CELL_SIZE * 0.6,
   },
   centerTokensLayer: {
     flexDirection: 'row',

@@ -15,9 +15,9 @@ import {
 } from '../../../../gameEngine/ludo/ludoTypes';
 import {
   LUDO_COLOR_THEMES,
-  LUDO_6P_COLORS,
-  LUDO_6P_SAFE_CELLS,
-  LUDO_6P_START_INDICES,
+  LUDO_5P_COLORS,
+  LUDO_5P_SAFE_CELLS,
+  LUDO_5P_START_INDICES,
 } from '../../../../gameEngine/ludo/ludoConstants';
 import LudoTokenView from './LudoTokenView';
 import { soundService } from '../../../../services/sound/soundService';
@@ -27,50 +27,50 @@ const { width } = Dimensions.get('window');
 const BOARD_SIZE = Math.min(width - 24, 380);
 const CENTER = BOARD_SIZE / 2;
 
-interface LudoBoard6PProps {
+interface LudoBoard5PProps {
   gameState: LudoGameState;
   selectableTokenIds: string[];
   onSelectToken: (tokenId: string) => void;
   activeColor: LudoPlayerColor;
 }
 
-export const LudoBoard6P: React.FC<LudoBoard6PProps> = ({
+export const LudoBoard5P: React.FC<LudoBoard5PProps> = ({
   gameState,
   selectableTokenIds,
   onSelectToken,
   activeColor,
 }) => {
-  // 6 Arm angles (degrees) and base yard positions in clockwise order:
-  // Red (225° / TL), Green (315° / TR), Yellow (0° / Right),
-  // Blue (60° / BR), Orange (120° / BL), Purple (180° / Left)
+  // 5 Arm angles (degrees) for the 5 colors in clockwise order:
+  // Red (234° / Top-Left), Green (306° / Top-Right), Yellow (18° / Bottom-Right),
+  // Blue (90° / Bottom-Center), Purple (162° / Bottom-Left)
   const ARM_CONFIG: Record<
     LudoPlayerColor,
     { angle: number; basePos: { x: number; y: number }; arrow: string }
   > = {
-    red: { angle: 225, basePos: { x: 0.21, y: 0.20 }, arrow: '↘' },
-    green: { angle: 315, basePos: { x: 0.79, y: 0.20 }, arrow: '↙' },
-    yellow: { angle: 0, basePos: { x: 0.86, y: 0.52 }, arrow: '⬅' },
-    blue: { angle: 60, basePos: { x: 0.79, y: 0.82 }, arrow: '↖' },
-    orange: { angle: 120, basePos: { x: 0.21, y: 0.82 }, arrow: '↗' },
-    purple: { angle: 180, basePos: { x: 0.14, y: 0.52 }, arrow: '➡' },
+    red: { angle: 234, basePos: { x: 0.22, y: 0.22 }, arrow: '↘' },
+    green: { angle: 306, basePos: { x: 0.78, y: 0.22 }, arrow: '↙' },
+    yellow: { angle: 18, basePos: { x: 0.84, y: 0.62 }, arrow: '⬅' },
+    blue: { angle: 90, basePos: { x: 0.5, y: 0.84 }, arrow: '⬆' },
+    purple: { angle: 162, basePos: { x: 0.16, y: 0.62 }, arrow: '➡' },
+    orange: { angle: 234, basePos: { x: 0.22, y: 0.22 }, arrow: '↘' },
   };
 
-  // Render Yard Box (4 token slots) for a color
-  const renderHomeYard6P = (color: LudoPlayerColor) => {
+  // Helper to render Yard Box (4 tokens) for a color
+  const renderHomeYard5P = (color: LudoPlayerColor) => {
     const theme = LUDO_COLOR_THEMES[color] || LUDO_COLOR_THEMES.red;
     const player = gameState.players.find((p) => p.color === color);
     const isYardActive = Boolean(player);
     const homeTokens = player?.tokens.filter((t) => t.status === 'home') || [];
     const config = ARM_CONFIG[color] || ARM_CONFIG.red;
 
-    const posX = config.basePos.x * BOARD_SIZE - 36;
-    const posY = config.basePos.y * BOARD_SIZE - 36;
+    const posX = config.basePos.x * BOARD_SIZE - 38;
+    const posY = config.basePos.y * BOARD_SIZE - 38;
 
     return (
       <View
         key={`yard_${color}`}
         style={[
-          styles.yardBox6P,
+          styles.yardBox5P,
           {
             left: posX,
             top: posY,
@@ -80,8 +80,8 @@ export const LudoBoard6P: React.FC<LudoBoard6PProps> = ({
           },
         ]}
       >
-        <View style={[styles.yardInnerBox6P, { borderColor: theme.dark }]}>
-          <View style={styles.yardSlotsGrid6P}>
+        <View style={[styles.yardInnerBox5P, { borderColor: theme.dark }]}>
+          <View style={styles.yardSlotsGrid5P}>
             {[0, 1, 2, 3].map((slotIdx) => {
               const token = homeTokens.find((t) => t.tokenIndex === slotIdx);
               const isSelectable = token ? selectableTokenIds.includes(token.id) : false;
@@ -90,19 +90,19 @@ export const LudoBoard6P: React.FC<LudoBoard6PProps> = ({
                 <View
                   key={slotIdx}
                   style={[
-                    styles.slotCircle6P,
+                    styles.slotCircle5P,
                     { backgroundColor: theme.light, borderColor: theme.primary },
                   ]}
                 >
                   {token ? (
                     <LudoTokenView
                       color={color}
-                      size={18}
+                      size={20}
                       isSelectable={isSelectable}
                       onPress={isSelectable ? () => onSelectToken(token.id) : undefined}
                     />
                   ) : (
-                    <View style={[styles.emptyDot6P, { backgroundColor: theme.primary }]} />
+                    <View style={[styles.emptyDot5P, { backgroundColor: theme.primary }]} />
                   )}
                 </View>
               );
@@ -113,23 +113,23 @@ export const LudoBoard6P: React.FC<LudoBoard6PProps> = ({
     );
   };
 
-  // Render 6 Home Track Corridors (5 cells each) leading from perimeter to center
+  // Render 5 Home Corridors (5 cells each) leading from perimeter to center
   const renderHomeCorridors = () => {
-    return LUDO_6P_COLORS.map((color) => {
+    return LUDO_5P_COLORS.map((color) => {
       const theme = LUDO_COLOR_THEMES[color] || LUDO_COLOR_THEMES.red;
       const player = gameState.players.find((p) => p.color === color);
       const corridorTokens =
-        player?.tokens.filter((t) => t.status === 'active' && t.stepCount >= 71) || [];
+        player?.tokens.filter((t) => t.status === 'active' && t.stepCount >= 59) || [];
       const config = ARM_CONFIG[color] || ARM_CONFIG.red;
       const rad = (config.angle * Math.PI) / 180;
 
       return (
         <React.Fragment key={`corridor_${color}`}>
           {[0, 1, 2, 3, 4].map((stepIdx) => {
-            const dist = 34 + stepIdx * 17;
-            const cx = CENTER + Math.cos(rad) * dist - 10;
-            const cy = CENTER + Math.sin(rad) * dist - 10;
-            const stepNum = 71 + stepIdx;
+            const dist = 36 + stepIdx * 17;
+            const cx = CENTER + Math.cos(rad) * dist - 11;
+            const cy = CENTER + Math.sin(rad) * dist - 11;
+            const stepNum = 59 + stepIdx;
             const tokensOnCell = corridorTokens.filter((t) => t.stepCount === stepNum);
             const tokenOnCell = tokensOnCell[0];
             const isSelectable = tokenOnCell ? selectableTokenIds.includes(tokenOnCell.id) : false;
@@ -138,7 +138,7 @@ export const LudoBoard6P: React.FC<LudoBoard6PProps> = ({
               <View
                 key={`corr_${color}_${stepIdx}`}
                 style={[
-                  styles.corridorCell6P,
+                  styles.corridorCell5P,
                   {
                     left: cx,
                     top: cy,
@@ -150,7 +150,7 @@ export const LudoBoard6P: React.FC<LudoBoard6PProps> = ({
                 {tokenOnCell ? (
                   <LudoTokenView
                     color={color}
-                    size={18}
+                    size={20}
                     isSelectable={isSelectable}
                     onPress={isSelectable ? () => onSelectToken(tokenOnCell.id) : undefined}
                     stackCount={tokensOnCell.length}
@@ -166,36 +166,36 @@ export const LudoBoard6P: React.FC<LudoBoard6PProps> = ({
     });
   };
 
-  // Render 72 Perimeter Track Cells
-  const renderPerimeterTrack = () => {
-    const TOTAL_TRACK_CELLS = 72;
+  // Render 60 Outer Perimeter Track Cells
+  const renderTrackCells = () => {
+    const TOTAL_TRACK_CELLS = 60;
     const trackRadius = BOARD_SIZE * 0.44;
 
     return Array.from({ length: TOTAL_TRACK_CELLS }).map((_, trackIdx) => {
       // Angle for this cell along the 360° circle
       const angleDeg = (trackIdx * 360) / TOTAL_TRACK_CELLS - 90;
       const rad = (angleDeg * Math.PI) / 180;
-      const cx = CENTER + Math.cos(rad) * trackRadius - 9;
-      const cy = CENTER + Math.sin(rad) * trackRadius - 9;
+      const cx = CENTER + Math.cos(rad) * trackRadius - 10;
+      const cy = CENTER + Math.sin(rad) * trackRadius - 10;
 
-      // Check if start cell
+      // Find which color this start cell belongs to
       let startColor: LudoPlayerColor | null = null;
-      for (const [c, startIdx] of Object.entries(LUDO_6P_START_INDICES)) {
-        if (startIdx === trackIdx && LUDO_6P_COLORS.includes(c as LudoPlayerColor)) {
+      for (const [c, startIdx] of Object.entries(LUDO_5P_START_INDICES)) {
+        if (startIdx === trackIdx && LUDO_5P_COLORS.includes(c as LudoPlayerColor)) {
           startColor = c as LudoPlayerColor;
           break;
         }
       }
 
-      const isSafe = LUDO_6P_SAFE_CELLS.includes(trackIdx);
+      const isSafe = LUDO_5P_SAFE_CELLS.includes(trackIdx);
       const startTheme = startColor ? LUDO_COLOR_THEMES[startColor] : null;
 
-      // Find tokens on this cell
+      // Find any tokens occupying this perimeter cell
       const activeTokensOnCell: Array<{ token: LudoToken; player: LudoPlayer }> = [];
       for (const player of gameState.players) {
         for (const token of player.tokens) {
-          if (token.status === 'active' && token.stepCount < 71) {
-            const startIdx = LUDO_6P_START_INDICES[player.color] || 0;
+          if (token.status === 'active' && token.stepCount < 59) {
+            const startIdx = LUDO_5P_START_INDICES[player.color] || 0;
             const currentTrackIdx = (startIdx + token.stepCount) % TOTAL_TRACK_CELLS;
             if (currentTrackIdx === trackIdx) {
               activeTokensOnCell.push({ token, player });
@@ -211,7 +211,7 @@ export const LudoBoard6P: React.FC<LudoBoard6PProps> = ({
         <View
           key={`track_${trackIdx}`}
           style={[
-            styles.trackCell6P,
+            styles.trackCell5P,
             {
               left: cx,
               top: cy,
@@ -242,7 +242,7 @@ export const LudoBoard6P: React.FC<LudoBoard6PProps> = ({
                   >
                     <LudoTokenView
                       color={player.color}
-                      size={18}
+                      size={20}
                       isSelectable={isSelectable}
                       onPress={isSelectable ? () => onSelectToken(token.id) : undefined}
                       stackCount={activeTokensOnCell.length}
@@ -261,8 +261,8 @@ export const LudoBoard6P: React.FC<LudoBoard6PProps> = ({
     });
   };
 
-  // Render Center Home Hexagon with 6 Finished Wedges
-  const renderCenterHome6P = () => {
+  // Render 5-Player Center Home Pentagon
+  const renderCenterHome5P = () => {
     const finishedTokens: Array<{ token: LudoToken; color: LudoPlayerColor }> = [];
     for (const player of gameState.players) {
       for (const token of player.tokens) {
@@ -273,16 +273,16 @@ export const LudoBoard6P: React.FC<LudoBoard6PProps> = ({
     }
 
     return (
-      <View style={styles.centerHomeWrap6P}>
-        {/* Center Star Circle */}
+      <View style={styles.centerHomeWrap5P}>
+        {/* Pentagonal 5-Color Meeting Wedges */}
         <View style={styles.centerStarCircle}>
           <Text style={styles.centerTrophyIcon}>🏆</Text>
         </View>
 
         {finishedTokens.length > 0 && (
           <View style={styles.centerFinishedTokens}>
-            {finishedTokens.slice(0, 6).map(({ token, color }) => (
-              <LudoTokenView key={token.id} color={color} size={15} isFinished={true} />
+            {finishedTokens.slice(0, 5).map(({ token, color }) => (
+              <LudoTokenView key={token.id} color={color} size={16} isFinished={true} />
             ))}
           </View>
         )}
@@ -291,34 +291,34 @@ export const LudoBoard6P: React.FC<LudoBoard6PProps> = ({
   };
 
   return (
-    <View style={styles.boardOuterBevel6P}>
+    <View style={styles.boardOuterBevel5P}>
       <View
         style={[
-          styles.boardContainer6P,
+          styles.boardContainer5P,
           {
             width: BOARD_SIZE,
             height: BOARD_SIZE,
           },
         ]}
       >
-        {/* 72 Track Perimeter Cells */}
-        {renderPerimeterTrack()}
+        {/* Track Cells */}
+        {renderTrackCells()}
 
-        {/* 6 Home Corridors */}
+        {/* 5 Home Corridors */}
         {renderHomeCorridors()}
 
-        {/* 6 Corner Yards */}
-        {LUDO_6P_COLORS.map((c) => renderHomeYard6P(c))}
+        {/* 5 Corner Yards */}
+        {LUDO_5P_COLORS.map((c) => renderHomeYard5P(c))}
 
         {/* Center Home */}
-        {renderCenterHome6P()}
+        {renderCenterHome5P()}
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  boardOuterBevel6P: {
+  boardOuterBevel5P: {
     alignItems: 'center',
     justifyContent: 'center',
     padding: 8,
@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 14,
   },
-  boardContainer6P: {
+  boardContainer5P: {
     backgroundColor: '#F8FAFC',
     borderRadius: 20,
     overflow: 'hidden',
@@ -340,12 +340,12 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#94A3B8',
   },
-  yardBox6P: {
+  yardBox5P: {
     position: 'absolute',
-    width: 72,
-    height: 72,
-    borderRadius: 16,
-    padding: 4,
+    width: 76,
+    height: 76,
+    borderRadius: 18,
+    padding: 5,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
@@ -356,16 +356,16 @@ const styles = StyleSheet.create({
     elevation: 4,
     zIndex: 10,
   },
-  yardInnerBox6P: {
+  yardInnerBox5P: {
     flex: 1,
     width: '100%',
     backgroundColor: '#FFFFFF',
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  yardSlotsGrid6P: {
+  yardSlotsGrid5P: {
     width: '84%',
     height: '84%',
     flexDirection: 'row',
@@ -373,25 +373,25 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignContent: 'space-between',
   },
-  slotCircle6P: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
+  slotCircle5P: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emptyDot6P: {
-    width: 7,
-    height: 7,
-    borderRadius: 3.5,
+  emptyDot5P: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     opacity: 0.35,
   },
-  corridorCell6P: {
+  corridorCell5P: {
     position: 'absolute',
-    width: 20,
-    height: 20,
-    borderRadius: 5,
+    width: 22,
+    height: 22,
+    borderRadius: 6,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -399,15 +399,15 @@ const styles = StyleSheet.create({
   },
   corridorArrow: {
     color: '#FFFFFF',
-    fontSize: 8,
+    fontSize: 9,
     fontWeight: '900',
     opacity: 0.7,
   },
-  trackCell6P: {
+  trackCell5P: {
     position: 'absolute',
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 2,
@@ -423,27 +423,27 @@ const styles = StyleSheet.create({
   },
   starText: {
     color: '#F59E0B',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '900',
   },
   startCellIcon: {
     color: '#FFFFFF',
-    fontSize: 7,
+    fontSize: 8,
   },
-  centerHomeWrap6P: {
+  centerHomeWrap5P: {
     position: 'absolute',
-    top: CENTER - 30,
-    left: CENTER - 30,
-    width: 60,
-    height: 60,
+    top: CENTER - 32,
+    left: CENTER - 32,
+    width: 64,
+    height: 64,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 20,
   },
   centerStarCircle: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
     borderColor: '#F59E0B',
@@ -456,7 +456,7 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   centerTrophyIcon: {
-    fontSize: 20,
+    fontSize: 22,
   },
   centerFinishedTokens: {
     position: 'absolute',
@@ -468,4 +468,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default LudoBoard6P;
+export default LudoBoard5P;

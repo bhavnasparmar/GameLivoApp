@@ -17,14 +17,15 @@ import { ROUTES } from '../../../../navigation/routes';
 import { useAppSelector } from '../../../../redux/hooks';
 
 const { width } = Dimensions.get('window');
+const TILE_WIDTH = (width - 36 - 12) / 2;
 
-interface ModeTile {
+interface ModeOption {
   id: string;
   title: string;
   subtitle: string;
   glyph: string;
-  badge: string;
-  gradient: [string, string];
+  playersCount: string;
+  gradient: string[];
   borderColor: string;
   onPress: () => void;
 }
@@ -57,57 +58,57 @@ export const LudoHomeScreen: React.FC = () => {
     }
   };
 
-  const modeTiles: ModeTile[] = [
+  const modeTiles: ModeOption[] = [
     {
       id: 'computer',
       title: 'Play with Robot',
       subtitle: '1 to 6 Players · Smart AI Bots',
       glyph: '🤖',
-      badge: 'SOLO & BOTS',
-      gradient: ['#C0392B', '#781515'],
+      playersCount: 'Instant Play',
+      gradient: isDark ? ['#381F1F', '#201010'] : ['#FDE8E8', '#F7D0D0'],
       borderColor: '#E74C3C',
       onPress: () => handleSelectMode('computer'),
     },
     {
+      id: 'local',
+      title: 'Pass & Play',
+      subtitle: '2 to 6 Players on 1 device',
+      glyph: '👥',
+      playersCount: 'Offline Mode',
+      gradient: isDark ? ['#362038', '#201022'] : ['#F9EBFB', '#F1D1F5'],
+      borderColor: '#9B59B6',
+      onPress: () => handleSelectMode('local'),
+    },
+    {
       id: 'random',
       title: 'Quick Match',
-      subtitle: 'Fast matchmaking with real players',
+      subtitle: 'Random online opponent',
       glyph: '⚡',
-      badge: '3,480 ONLINE',
-      gradient: ['#2980B9', '#154360'],
-      borderColor: '#3498DB',
+      playersCount: '3,480 online',
+      gradient: isDark ? ['#1F2B3E', '#111824'] : ['#E6F0FA', '#D0E2F7'],
+      borderColor: '#2668D9',
       onPress: () => handleSelectMode('random'),
     },
     {
       id: 'private',
       title: 'Play with Friends',
-      subtitle: 'Create Room (1-6P) / Join with PIN',
+      subtitle: 'Create / Join with code',
       glyph: '🔒',
-      badge: 'CUSTOM ROOM',
-      gradient: ['#27AE60', '#145A32'],
+      playersCount: 'Custom Room',
+      gradient: isDark ? ['#1F3624', '#102014'] : ['#E8F8F0', '#D0F2E0'],
       borderColor: '#2ECC71',
       onPress: () => handleSelectMode('private'),
-    },
-    {
-      id: 'local',
-      title: 'Pass & Play',
-      subtitle: '2 to 6 Players on one device',
-      glyph: '📱',
-      badge: 'LOCAL OFFLINE',
-      gradient: ['#8E44AD', '#512E5F'],
-      borderColor: '#9B59B6',
-      onPress: () => handleSelectMode('local'),
     },
   ];
 
   return (
-    <View style={[styles.container, { backgroundColor: isDark ? '#08120D' : '#F2F8F4' }]}>
+    <View style={[styles.container, { backgroundColor: isDark ? '#0F0B0B' : '#FBF6F6' }]}>
       <StatusBar barStyle="light-content" />
 
       {/* Top App Bar */}
       <LinearGradient
-        colors={['#E74C3C', '#C0392B', '#922B21']}
-        style={[styles.appBar, { paddingTop: Math.max(insets.top + 8, 26) }]}
+        colors={isDark ? ['#421212', '#2B0B0B', '#1A0606'] : ['#E74C3C', '#C0392B', '#922B21']}
+        style={[styles.appBar, { paddingTop: Math.max(insets.top + 10, 28) }]}
       >
         <View style={styles.appBarRow}>
           <TouchableOpacity
@@ -117,11 +118,7 @@ export const LudoHomeScreen: React.FC = () => {
           >
             <Text style={styles.backIcon}>←</Text>
           </TouchableOpacity>
-
-          <View style={styles.titleWrap}>
-            <Text style={styles.appBarTitle}>LUDO CHAMPIONSHIP</Text>
-          </View>
-
+          <Text style={styles.appBarTitle}>Ludo Championship</Text>
           <View style={styles.coinPill}>
             <Text style={styles.coinDot}>🪙</Text>
             <Text style={styles.coinText}>{userCoins.toLocaleString()}</Text>
@@ -135,117 +132,134 @@ export const LudoHomeScreen: React.FC = () => {
       >
         {/* Hero Banner */}
         <LinearGradient
-          colors={['#1E272E', '#2C3E50', '#1A252F']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.heroBanner}
+          colors={isDark ? ['#35201A', '#22120C', '#140A06'] : ['#2C3E50', '#1A252F', '#111822']}
+          style={styles.heroCard}
         >
+          <View style={styles.heroEmblem}>
+            <Text style={styles.heroGlyph}>🎲</Text>
+          </View>
           <View style={styles.heroContent}>
-            <View style={styles.heroBadgeWrap}>
-              <LinearGradient colors={['#F39C12', '#D35400']} style={styles.heroBadge}>
-                <Text style={styles.heroBadgeText}>🏆 1 TO 6 PLAYERS</Text>
-              </LinearGradient>
+            <View style={styles.livePill}>
+              <View style={styles.liveDot} />
+              <Text style={styles.liveText}>3,480 Players Online</Text>
             </View>
             <Text style={styles.heroTitle}>Master The Board</Text>
-            <Text style={styles.heroSubtitle}>
-              Roll 6s, knock out rivals, and race your tokens to victory!
-            </Text>
-
-            <View style={styles.heroFeaturesRow}>
-              <View style={styles.featureItem}>
-                <Text style={styles.featureEmoji}>🎲</Text>
-                <Text style={styles.featureText}>3D Physics Dice</Text>
-              </View>
-              <View style={styles.featureItem}>
-                <Text style={styles.featureEmoji}>👥</Text>
-                <Text style={styles.featureText}>1-6 Players</Text>
-              </View>
-              <View style={styles.featureItem}>
-                <Text style={styles.featureEmoji}>⚡</Text>
-                <Text style={styles.featureText}>Smooth Hopping</Text>
-              </View>
-            </View>
+            <Text style={styles.heroSub}>1 to 6 Players · 3D Physics Dice · Classic & Hexa</Text>
           </View>
         </LinearGradient>
 
-        {/* Action Button: Quick Rules */}
-        <View style={styles.rulesBtnRow}>
-          <TouchableOpacity
-            activeOpacity={0.8}
-            style={styles.rulesBtn}
-            onPress={() => setShowRulesModal(true)}
-          >
-            <Text style={styles.rulesBtnIcon}>📖</Text>
-            <Text style={styles.rulesBtnText}>Official Ludo Rules & Guide</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Mode Tiles */}
-        <Text style={[styles.sectionTitle, { color: isDark ? '#FFFFFF' : '#1A252F' }]}>
-          Select Game Mode
+        {/* Mode Selection Grid */}
+        <Text style={[styles.sectionTitle, { color: isDark ? '#FF7675' : '#C0392B' }]}>
+          SELECT GAME MODE
         </Text>
 
-        <View style={styles.tilesGrid}>
+        <View style={styles.grid}>
           {modeTiles.map((tile) => (
             <TouchableOpacity
               key={tile.id}
-              activeOpacity={0.85}
-              style={[styles.modeCard, { borderColor: tile.borderColor }]}
+              activeOpacity={0.82}
+              style={[
+                styles.modeTile,
+                {
+                  borderColor: tile.borderColor,
+                },
+              ]}
               onPress={tile.onPress}
             >
-              <LinearGradient
-                colors={tile.gradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.modeCardGradient}
-              >
-                <View style={styles.cardTopRow}>
-                  <Text style={styles.cardGlyph}>{tile.glyph}</Text>
-                  <View style={styles.cardBadge}>
-                    <Text style={styles.cardBadgeText}>{tile.badge}</Text>
-                  </View>
+              <LinearGradient colors={tile.gradient} style={styles.tileGradient}>
+                <View style={styles.tileHeader}>
+                  <Text style={styles.tileGlyph}>{tile.glyph}</Text>
+                  <Text style={[styles.tileBadge, { color: tile.borderColor }]}>
+                    {tile.playersCount}
+                  </Text>
                 </View>
-
-                <View style={styles.cardBottom}>
-                  <Text style={styles.cardTitle}>{tile.title}</Text>
-                  <Text style={styles.cardSubtitle}>{tile.subtitle}</Text>
-                </View>
+                <Text
+                  style={[
+                    styles.tileTitle,
+                    { color: isDark ? '#FFFFFF' : '#1A2318' },
+                  ]}
+                >
+                  {tile.title}
+                </Text>
+                <Text
+                  style={[
+                    styles.tileSubtitle,
+                    { color: isDark ? '#A9B7C6' : '#636E72' },
+                  ]}
+                >
+                  {tile.subtitle}
+                </Text>
               </LinearGradient>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* Stats Section */}
-        <Text style={[styles.sectionTitle, { color: isDark ? '#FFFFFF' : '#1A252F', marginTop: 24 }]}>
-          Your Ludo Career
-        </Text>
-
-        <View style={styles.statsCard}>
+        {/* Interactive Rules & Guide Button */}
+        <TouchableOpacity
+          activeOpacity={0.8}
+          style={[
+            styles.rulesLinkCard,
+            {
+              backgroundColor: isDark ? '#1C1212' : '#FFFFFF',
+              borderColor: isDark ? 'rgba(231,76,60,0.35)' : '#FADBD8',
+            },
+          ]}
+          onPress={() => setShowRulesModal(true)}
+        >
           <LinearGradient
-            colors={['#1F2937', '#111827']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.statsGradient}
+            colors={isDark ? ['rgba(231,76,60,0.15)', 'transparent'] : ['rgba(231,76,60,0.08)', 'transparent']}
+            style={styles.rulesGradient}
           >
-            <View style={styles.statCol}>
-              <Text style={styles.statVal}>{ludoStats.gamesPlayed || 0}</Text>
-              <Text style={styles.statLbl}>Matches</Text>
+            <View style={styles.rulesLeft}>
+              <Text style={styles.rulesIcon}>📖</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.rulesTitle, { color: isDark ? '#F1F4F7' : '#1A2318' }]}>
+                  Official Ludo Rules & Guide
+                </Text>
+                <Text style={[styles.rulesSub, { color: isDark ? '#A9B7C6' : '#636E72' }]}>
+                  Opening tokens, bonus rolls, star safe squares, 3-sixes penalty
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.rulesChevron}>›</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+
+        {/* Player Stats Snapshot */}
+        <View
+          style={[
+            styles.statsCard,
+            {
+              backgroundColor: isDark ? '#160E0E' : '#FFFFFF',
+              borderColor: isDark ? 'rgba(255,255,255,0.06)' : '#F5E6E6',
+            },
+          ]}
+        >
+          <Text style={[styles.statsHeader, { color: isDark ? '#FF7675' : '#C0392B' }]}>
+            YOUR LUDO STATS
+          </Text>
+          <View style={styles.statsRow}>
+            <View style={styles.statBox}>
+              <Text style={[styles.statValue, { color: isDark ? '#FFF' : '#1A2318' }]}>
+                {ludoStats.rank || 1520}
+              </Text>
+              <Text style={styles.statLabel}>Ludo Rating</Text>
             </View>
             <View style={styles.statDivider} />
-            <View style={styles.statCol}>
-              <Text style={[styles.statVal, { color: '#2ECC71' }]}>
+            <View style={styles.statBox}>
+              <Text style={[styles.statValue, { color: isDark ? '#5CF27A' : '#1F9D55' }]}>
                 {ludoStats.winRate || (ludoStats.gamesPlayed ? Math.round(((ludoStats.wins || 0) / ludoStats.gamesPlayed) * 100) : 0)}%
               </Text>
-              <Text style={styles.statLbl}>Win Rate</Text>
+              <Text style={styles.statLabel}>Win Rate</Text>
             </View>
             <View style={styles.statDivider} />
-            <View style={styles.statCol}>
-              <Text style={[styles.statVal, { color: '#F1C40F' }]}>
-                {ludoStats.rank || 1500}
+            <View style={styles.statBox}>
+              <Text style={[styles.statValue, { color: isDark ? '#F0C64A' : '#D4A017' }]}>
+                {ludoStats.gamesPlayed || 0}
               </Text>
-              <Text style={styles.statLbl}>Ludo Rating</Text>
+              <Text style={styles.statLabel}>Matches</Text>
             </View>
-          </LinearGradient>
+          </View>
         </View>
       </ScrollView>
 
@@ -324,8 +338,13 @@ const styles = StyleSheet.create({
   appBar: {
     paddingHorizontal: 16,
     paddingBottom: 16,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 8,
   },
   appBarRow: {
     flexDirection: 'row',
@@ -333,223 +352,226 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.15)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   backIcon: {
-    color: '#FFFFFF',
     fontSize: 20,
+    color: '#FFFFFF',
     fontWeight: '700',
   },
-  titleWrap: {
-    alignItems: 'center',
-  },
   appBarTitle: {
-    color: '#FFFFFF',
     fontSize: 18,
-    fontWeight: '900',
-    letterSpacing: 1,
+    fontWeight: '800',
+    color: '#FFFFFF',
   },
   coinPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
+    gap: 5,
   },
   coinDot: {
-    fontSize: 14,
-    marginRight: 4,
+    fontSize: 13,
   },
   coinText: {
-    color: '#F1C40F',
-    fontWeight: '800',
     fontSize: 13,
+    fontWeight: '800',
+    color: '#F0C64A',
   },
   content: {
     padding: 16,
   },
-  heroBanner: {
-    borderRadius: 20,
-    padding: 18,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.12)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 8,
-    marginBottom: 16,
-  },
-  heroContent: {
-    width: '100%',
-  },
-  heroBadgeWrap: {
-    alignSelf: 'flex-start',
-    marginBottom: 8,
-  },
-  heroBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  heroBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 11,
-    fontWeight: '900',
-    letterSpacing: 0.5,
-  },
-  heroTitle: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    marginBottom: 6,
-  },
-  heroSubtitle: {
-    fontSize: 13,
-    color: '#BDC3C7',
-    lineHeight: 18,
-    marginBottom: 14,
-  },
-  heroFeaturesRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    backgroundColor: 'rgba(0,0,0,0.25)',
-    borderRadius: 12,
-    padding: 10,
-  },
-  featureItem: {
+  heroCard: {
     flexDirection: 'row',
     alignItems: 'center',
+    borderRadius: 22,
+    padding: 18,
+    marginBottom: 20,
+    borderWidth: 1.5,
+    borderColor: 'rgba(231,76,60,0.4)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.45,
+    shadowRadius: 14,
+    elevation: 6,
   },
-  featureEmoji: {
-    fontSize: 14,
-    marginRight: 4,
-  },
-  featureText: {
-    fontSize: 11,
-    color: '#ECF0F1',
-    fontWeight: '700',
-  },
-  rulesBtnRow: {
-    marginBottom: 18,
-  },
-  rulesBtn: {
-    flexDirection: 'row',
+  heroEmblem: {
+    width: 64,
+    height: 64,
+    borderRadius: 18,
+    backgroundColor: 'rgba(231, 76, 60, 0.2)',
+    borderWidth: 1.5,
+    borderColor: '#E74C3C',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(231, 76, 60, 0.15)',
-    borderRadius: 14,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: '#E74C3C',
+    marginRight: 14,
   },
-  rulesBtnIcon: {
-    fontSize: 16,
-    marginRight: 6,
+  heroGlyph: {
+    fontSize: 34,
+    color: '#FF7675',
   },
-  rulesBtnText: {
-    color: '#E74C3C',
+  heroContent: {
+    flex: 1,
+  },
+  livePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(31, 157, 85, 0.25)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginBottom: 4,
+    gap: 5,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#5CF27A',
+  },
+  liveText: {
+    fontSize: 10.5,
     fontWeight: '800',
-    fontSize: 13,
+    color: '#5CF27A',
+  },
+  heroTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#FFFFFF',
+  },
+  heroSub: {
+    fontSize: 12,
+    color: '#FFCDD2',
+    marginTop: 2,
   },
   sectionTitle: {
-    fontSize: 17,
+    fontSize: 12,
     fontWeight: '800',
+    letterSpacing: 0.8,
     marginBottom: 12,
-    letterSpacing: 0.3,
   },
-  tilesGrid: {
+  grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 16,
   },
-  modeCard: {
-    width: (width - 44) / 2,
-    height: 140,
-    borderRadius: 18,
+  modeTile: {
+    width: TILE_WIDTH,
+    borderRadius: 20,
     borderWidth: 1.5,
     overflow: 'hidden',
-    marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.2,
     shadowRadius: 6,
-    elevation: 5,
+    elevation: 3,
   },
-  modeCardGradient: {
-    flex: 1,
-    padding: 12,
+  tileGradient: {
+    padding: 16,
+    minHeight: 124,
     justifyContent: 'space-between',
   },
-  cardTopRow: {
+  tileHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
-  cardGlyph: {
+  tileGlyph: {
     fontSize: 28,
   },
-  cardBadge: {
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    borderRadius: 8,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+  tileBadge: {
+    fontSize: 9.5,
+    fontWeight: '800',
   },
-  cardBadgeText: {
-    color: '#FFFFFF',
-    fontSize: 8,
-    fontWeight: '900',
+  tileTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginTop: 10,
   },
-  cardBottom: {},
-  cardTitle: {
-    color: '#FFFFFF',
+  tileSubtitle: {
+    fontSize: 11,
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  rulesLinkCard: {
+    borderRadius: 18,
+    borderWidth: 1.5,
+    overflow: 'hidden',
+    marginBottom: 16,
+  },
+  rulesGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  rulesLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  rulesIcon: {
+    fontSize: 26,
+  },
+  rulesTitle: {
     fontSize: 15,
     fontWeight: '800',
-    marginBottom: 2,
   },
-  cardSubtitle: {
-    color: 'rgba(255,255,255,0.8)',
-    fontSize: 10,
+  rulesSub: {
+    fontSize: 11.5,
+    marginTop: 2,
+  },
+  rulesChevron: {
+    fontSize: 24,
     fontWeight: '600',
-    lineHeight: 13,
+    color: '#E74C3C',
+    marginLeft: 8,
   },
   statsCard: {
-    borderRadius: 18,
-    overflow: 'hidden',
+    borderRadius: 20,
+    padding: 18,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
-  statsGradient: {
+  statsHeader: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 14,
+    textAlign: 'center',
+  },
+  statsRow: {
     flexDirection: 'row',
-    paddingVertical: 16,
-    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'space-around',
+  },
+  statBox: {
     alignItems: 'center',
   },
-  statCol: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statVal: {
+  statValue: {
     fontSize: 20,
     fontWeight: '900',
-    color: '#FFFFFF',
-    marginBottom: 2,
   },
-  statLbl: {
+  statLabel: {
     fontSize: 11,
-    color: '#9CA3AF',
-    fontWeight: '700',
+    color: '#95A5A6',
+    fontWeight: '600',
+    marginTop: 2,
   },
   statDivider: {
     width: 1,
-    height: 28,
-    backgroundColor: 'rgba(255,255,255,0.15)',
+    height: 32,
+    backgroundColor: 'rgba(255,255,255,0.08)',
   },
   modalOverlay: {
     flex: 1,

@@ -7,19 +7,27 @@ export const LUDO_DEFAULT_TURN_TIME = 15; // 15s turn timer
 // 4-Player Board Metrics
 export const LUDO_4P_TOTAL_CELLS = 52; // Main track perimeter cells
 export const LUDO_4P_HOME_STRETCH_LENGTH = 5; // 5 cells in colored corridor
-export const LUDO_4P_WIN_STEP = 57; // 56th step is home corridor end, 57 is center win!
+export const LUDO_4P_WIN_STEP = 56; // 50 perimeter steps + 5 corridor steps + 1 center home win step = 56
 export const LUDO_TOKENS_PER_PLAYER = 4;
+
+// 5-Player Board Metrics
+export const LUDO_5P_TOTAL_CELLS = 60; // Main track perimeter cells for 5-arm pentagon
+export const LUDO_5P_HOME_STRETCH_LENGTH = 5;
+export const LUDO_5P_WIN_STEP = 64; // 58 perimeter steps + 5 corridor steps + 1 center home win step = 64
 
 // 6-Player Board Metrics
 export const LUDO_6P_TOTAL_CELLS = 72; // Main perimeter cells for 6-arm board
 export const LUDO_6P_HOME_STRETCH_LENGTH = 5;
-export const LUDO_6P_WIN_STEP = 77;
+export const LUDO_6P_WIN_STEP = 76; // 70 perimeter steps + 5 corridor steps + 1 center home win step = 76
 
-// 4-Player Color Order & Configurations (Matching Image: Red = TL, Yellow = TR, Green = BL, Blue = BR)
-export const LUDO_4P_COLORS: LudoPlayerColor[] = ['red', 'yellow', 'green', 'blue'];
+// 4-Player Color Order & Configurations (Standard Clockwise: Red = TL, Green = TR, Yellow = BR, Blue = BL)
+export const LUDO_4P_COLORS: LudoPlayerColor[] = ['red', 'green', 'yellow', 'blue'];
 
-// 6-Player Color Order & Configurations
-export const LUDO_6P_COLORS: LudoPlayerColor[] = ['red', 'yellow', 'green', 'blue', 'orange', 'purple'];
+// 5-Player Color Order & Configurations (Clockwise: Red = TL, Green = TR, Yellow = BR, Blue = Bottom, Purple = Left)
+export const LUDO_5P_COLORS: LudoPlayerColor[] = ['red', 'green', 'yellow', 'blue', 'purple'];
+
+// 6-Player Color Order & Configurations (Clockwise: Red=TL, Green=TR, Yellow=MR, Blue=BR, Purple=ML, Orange=BL)
+export const LUDO_6P_COLORS: LudoPlayerColor[] = ['red', 'green', 'yellow', 'blue', 'purple', 'orange'];
 
 export const LUDO_COLOR_THEMES: Record<
   LudoPlayerColor,
@@ -35,39 +43,39 @@ export const LUDO_COLOR_THEMES: Record<
 > = {
   red: {
     name: 'Player 1',
-    primary: '#E74C3C',
-    dark: '#922B21',
-    light: '#FADBD8',
-    glow: 'rgba(231, 76, 60, 0.4)',
+    primary: '#E53935',
+    dark: '#C62828',
+    light: '#FFEBEE',
+    glow: 'rgba(229, 57, 53, 0.4)',
     badge: '🔴',
-    hexCode: '#E74C3C',
-  },
-  yellow: {
-    name: 'Player 2',
-    primary: '#F1C40F',
-    dark: '#B7950B',
-    light: '#FCF3CF',
-    glow: 'rgba(241, 196, 15, 0.4)',
-    badge: '🟡',
-    hexCode: '#F1C40F',
+    hexCode: '#E53935',
   },
   green: {
-    name: 'Player 3',
-    primary: '#2ECC71',
-    dark: '#1E8449',
-    light: '#D4EFDF',
-    glow: 'rgba(46, 204, 113, 0.4)',
+    name: 'Player 2',
+    primary: '#00A859',
+    dark: '#1B5E20',
+    light: '#E8F8F0',
+    glow: 'rgba(0, 168, 89, 0.4)',
     badge: '🟢',
-    hexCode: '#2ECC71',
+    hexCode: '#00A859',
+  },
+  yellow: {
+    name: 'Player 3',
+    primary: '#FFC107',
+    dark: '#F57F17',
+    light: '#FFFDE7',
+    glow: 'rgba(255, 193, 7, 0.4)',
+    badge: '🟡',
+    hexCode: '#FFC107',
   },
   blue: {
     name: 'Player 4',
-    primary: '#3498DB',
-    dark: '#1F618D',
-    light: '#D6EAF8',
-    glow: 'rgba(52, 152, 219, 0.4)',
+    primary: '#0288D1',
+    dark: '#0D47A1',
+    light: '#E1F5FE',
+    glow: 'rgba(2, 136, 209, 0.4)',
     badge: '🔵',
-    hexCode: '#3498DB',
+    hexCode: '#0288D1',
   },
   orange: {
     name: 'Player 5',
@@ -89,42 +97,61 @@ export const LUDO_COLOR_THEMES: Record<
   },
 };
 
-// 4-Player Start Track Indices on 52-cell circle
+// 4-Player Start Track Indices on 52-cell circle (Clockwise: Red=0, Green=13, Yellow=26, Blue=39)
 export const LUDO_4P_START_INDICES: Record<LudoPlayerColor, number> = {
   red: 0,
   green: 13,
-  blue: 26,
-  yellow: 39,
+  yellow: 26,
+  blue: 39,
   orange: 0,
   purple: 0,
 };
 
-// 4-Player Safe Cells (Start cells + Star cells)
+// 4-Player Safe Cells (4 Start cells + 4 Star cells)
 export const LUDO_4P_SAFE_CELLS: number[] = [
-  0, 8, // Red
-  13, 21, // Green
-  26, 34, // Blue
-  39, 47, // Yellow
+  0, 8, // Red Start (0) & Star (8)
+  13, 21, // Green Start (13) & Star (21)
+  26, 34, // Yellow Start (26) & Star (34)
+  39, 47, // Blue Start (39) & Star (47)
 ];
 
-// 6-Player Start Track Indices on 72-cell circle
+// 5-Player Start Track Indices on 60-cell circle (Clockwise: Red=0, Green=12, Yellow=24, Blue=36, Purple=48)
+export const LUDO_5P_START_INDICES: Record<LudoPlayerColor, number> = {
+  red: 0,
+  green: 12,
+  yellow: 24,
+  blue: 36,
+  purple: 48,
+  orange: 0,
+};
+
+// 5-Player Safe Cells (5 Start cells + 5 Star cells)
+export const LUDO_5P_SAFE_CELLS: number[] = [
+  0, 6, // Red Start (0) & Star (6)
+  12, 18, // Green Start (12) & Star (18)
+  24, 30, // Yellow Start (24) & Star (30)
+  36, 42, // Blue Start (36) & Star (42)
+  48, 54, // Purple Start (48) & Star (54)
+];
+
+// 6-Player Start Track Indices on 72-cell circle (Clockwise: Red=0, Green=12, Yellow=24, Blue=36, Purple=48, Orange=60)
 export const LUDO_6P_START_INDICES: Record<LudoPlayerColor, number> = {
   red: 0,
   green: 12,
-  blue: 24,
-  yellow: 36,
-  orange: 48,
-  purple: 60,
+  yellow: 24,
+  blue: 36,
+  purple: 48,
+  orange: 60,
 };
 
-// 6-Player Safe Cells
+// 6-Player Safe Cells (6 Start cells + 6 Star cells)
 export const LUDO_6P_SAFE_CELLS: number[] = [
-  0, 7, // Red
-  12, 19, // Green
-  24, 31, // Blue
-  36, 43, // Yellow
-  48, 55, // Orange
-  60, 67, // Purple
+  0, 6, // Red Start & Star
+  12, 18, // Green Start & Star
+  24, 30, // Yellow Start & Star
+  36, 42, // Blue Start & Star
+  48, 54, // Purple Start & Star
+  60, 66, // Orange Start & Star
 ];
 
 // Preset Bot Profiles for 1-6 player games

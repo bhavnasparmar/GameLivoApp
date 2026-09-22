@@ -7,8 +7,10 @@ import {
 } from './ludoTypes';
 import {
   LUDO_4P_SAFE_CELLS,
+  LUDO_5P_SAFE_CELLS,
   LUDO_6P_SAFE_CELLS,
   LUDO_4P_WIN_STEP,
+  LUDO_5P_WIN_STEP,
   LUDO_6P_WIN_STEP,
 } from './ludoConstants';
 import { LudoPath } from './ludoPath';
@@ -30,7 +32,12 @@ export const LudoRules = {
     }
 
     // On active track
-    const maxWinStep = boardType === '4player' ? LUDO_4P_WIN_STEP : LUDO_6P_WIN_STEP;
+    const maxWinStep =
+      boardType === '5player'
+        ? LUDO_5P_WIN_STEP
+        : boardType === '4player'
+        ? LUDO_4P_WIN_STEP
+        : LUDO_6P_WIN_STEP;
     const newStep = token.stepCount + diceValue;
 
     // Must reach win position with exact roll or less (cannot overshoot)
@@ -42,7 +49,12 @@ export const LudoRules = {
     trackIndex: number,
     boardType: LudoBoardType = '4player',
   ): boolean => {
-    const safeCells = boardType === '4player' ? LUDO_4P_SAFE_CELLS : LUDO_6P_SAFE_CELLS;
+    const safeCells =
+      boardType === '5player'
+        ? LUDO_5P_SAFE_CELLS
+        : boardType === '4player'
+        ? LUDO_4P_SAFE_CELLS
+        : LUDO_6P_SAFE_CELLS;
     return safeCells.includes(trackIndex);
   },
 
