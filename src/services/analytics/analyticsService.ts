@@ -14,9 +14,15 @@ export type AnalyticsEvent =
   | 'referral_used';
 
 export const analyticsService = {
+  /** Generic event tracking — used by GameAnalytics */
+  track: (event: string, params?: Record<string, unknown>): void => {
+    // TODO: implement with @react-native-firebase/analytics
+    if (__DEV__) { console.log('[Analytics] Track:', event, params); }
+  },
+
   logEvent: (event: AnalyticsEvent, params?: Record<string, unknown>): void => {
     // TODO: implement with @react-native-firebase/analytics
-    console.log('[Analytics] Event:', event, params);
+    if (__DEV__) { console.log('[Analytics] Event:', event, params); }
   },
 
   setUserId: (userId: string): void => {

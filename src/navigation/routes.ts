@@ -51,6 +51,7 @@ export const ROUTES = {
 
   // Chidiya Udd
   CHIDIYA_HOME: 'ChidiyaHome',
+  CHIDIYA_MODE: 'ChidiyaMode',
   CHIDIYA_LOBBY: 'ChidiyaLobby',
   CHIDIYA_GAME: 'ChidiyaGame',
   CHIDIYA_RESULT: 'ChidiyaResult',

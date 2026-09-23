@@ -132,8 +132,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   promoPieceImg: {
-    width: 44,
-    height: 44,
+    width: 52,
+    height: 52,
   },
   glyphText: {
     fontSize: 32,

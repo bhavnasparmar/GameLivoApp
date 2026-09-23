@@ -12,6 +12,7 @@ import rewardReducer from './slices/rewardSlice';
 import leaderboardReducer from './slices/leaderboardSlice';
 import settingsReducer from './slices/settingsSlice';
 import networkReducer from './slices/networkSlice';
+import downloadReducer from './slices/downloadSlice';
 
 const rootReducer = combineReducers({
   auth: authReducer,
@@ -27,6 +28,7 @@ const rootReducer = combineReducers({
   leaderboard: leaderboardReducer,
   settings: settingsReducer,
   network: networkReducer,
+  download: downloadReducer,
 });
 
 export type RootState = ReturnType<typeof rootReducer>;

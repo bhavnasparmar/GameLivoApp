@@ -27,8 +27,13 @@ export const GameUtils = {
       snakeLadder: 'Snake & Ladder',
       chidiyaUdd: 'Chidiya Udd',
       esto: 'Esto',
+      carrom: 'Carrom',
+      chorChithya: 'Chor Chithya',
+      rajaMantriChorSipahi: 'Raja-Mantri-Chor-Sipahi',
+      tambola: 'Tambola',
+      fingerCricket: 'Finger Cricket',
     };
-    return names[gameId];
+    return names[gameId] ?? gameId;
   },
 
   calculateXP: (rank: number, totalPlayers: number): number => {

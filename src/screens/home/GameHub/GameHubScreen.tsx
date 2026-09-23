@@ -19,74 +19,38 @@ import { useAppDispatch, useAppSelector } from '../../../redux/hooks';
 import { selectUserProfile, selectUserCoins } from '../../../redux/selectors/userSelectors';
 import { fetchProfileSuccess } from '../../../redux/slices/userSlice';
 import { selectGame } from '../../../redux/slices/gameSlice';
+import {
+  setGameAssetState,
+  setGameDownloadProgress,
+} from '../../../redux/slices/downloadSlice';
 import { userService } from '../../../services/user/userService';
-import { gameService } from '../../../services/games/gameService';
-import { Game, GameId } from '../../../types/game';
+import { Game, GameId, GameHubCategory } from '../../../types/game';
+import { GameAssetState, GameModule } from '../../../types/gameModule';
 import { GAMES } from '../../../constants/gameConstants';
 import { ROUTES } from '../../../navigation/routes';
 import GameCard, { GameCardMeta } from '../../../components/cards/GameCard/GameCard';
+import { GameRegistry } from '../../../core/registry/GameRegistry';
+import { GameDownloadManager } from '../../../core/download/GameDownloadManager';
+import { GameAnalytics } from '../../../core/analytics/GameAnalytics';
 
 const { width } = Dimensions.get('window');
-const TILE_WIDTH = (width - 40 - 14) / 2;
 
-// GameCardMeta is now imported from GameCard component
+// ─── Hub Category Tabs ────────────────────────────────────────────────────────
 
-const GAME_CARDS: GameCardMeta[] = [
-  {
-    id: 'chess',
-    name: 'Chess',
-    glyph: '♞',
-    tag: '1v1 · Ranked',
-    onlineCount: '1,204 online',
-    gradient: ['#4A4238', '#211C17'],
-    route: ROUTES.CHESS_HOME || 'ChessHome',
-  },
-  {
-    id: 'ludo',
-    name: 'Ludo',
-    glyph: '⛃',
-    tag: '2–4 players',
-    onlineCount: '3,890 online',
-    gradient: ['#2668D9', '#123A80'],
-    route: ROUTES.LUDO_HOME || 'LudoHome',
-  },
-  {
-    id: 'uno',
-    name: 'Uno',
-    glyph: '🂡',
-    tag: '2–6 players',
-    onlineCount: '2,110 online',
-    gradient: ['#E6483A', '#8F1D13'],
-    route: ROUTES.UNO_HOME || 'UnoHome',
-  },
-  {
-    id: 'snakeLadder',
-    name: 'Snake & Ladder',
-    glyph: '🐍',
-    tag: '2–6 players',
-    onlineCount: '960 online',
-    gradient: ['#1F9D55', '#0D5230'],
-    route: ROUTES.SNAKE_LADDER_HOME || 'SnakeLadderHome',
-  },
-  {
-    id: 'chidiyaUdd',
-    name: 'Chidiya Udd',
-    glyph: '🐦',
-    tag: 'Up to 8 players',
-    onlineCount: '540 online',
-    gradient: ['#F2B705', '#A67200'],
-    route: ROUTES.CHIDIYA_HOME || 'ChidiyaHome',
-  },
-  {
-    id: 'esto',
-    name: 'Esto',
-    glyph: '🐚',
-    tag: 'Chowka Bara',
-    onlineCount: '720 online',
-    gradient: ['#9A4BD1', '#4C1F70'],
-    route: ROUTES.ESTO_HOME || 'EstoHome',
-  },
+interface HubTab {
+  key: GameHubCategory;
+  label: string;
+  emoji: string;
+}
+
+const HUB_TABS: HubTab[] = [
+  { key: 'popular', label: 'Popular', emoji: '🔥' },
+  { key: 'indian',  label: 'Indian',  emoji: '🇮🇳' },
+  { key: 'board',   label: 'Board',   emoji: '♟️' },
+  { key: 'card',    label: 'Card',    emoji: '🃏' },
 ];
+
+// ─── Friends ──────────────────────────────────────────────────────────────────
 
 interface OnlineFriend {
   id: string;
@@ -96,123 +60,153 @@ interface OnlineFriend {
 }
 
 const SAMPLE_FRIENDS: OnlineFriend[] = [
-  { id: '1', initials: 'RS', name: 'Riya', status: 'Playing Ludo' },
+  { id: '1', initials: 'RS', name: 'Riya',  status: 'Playing Ludo' },
   { id: '2', initials: 'KV', name: 'Karan', status: 'In lobby' },
   { id: '3', initials: 'MJ', name: 'Meera', status: 'Playing Uno' },
   { id: '4', initials: 'TP', name: 'Tanvi', status: 'Online' },
   { id: '5', initials: 'SP', name: 'Sanya', status: 'Playing Chess' },
 ];
 
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export const GameHubScreen: React.FC = () => {
-  const insets = useSafeAreaInsets();
-  const navigation = useNavigation<any>();
-  const dispatch = useAppDispatch();
+  const insets        = useSafeAreaInsets();
+  const navigation    = useNavigation<any>();
+  const dispatch      = useAppDispatch();
   const { theme, isDark } = useTheme();
 
   const userProfile = useAppSelector(selectUserProfile);
-  const userCoins = useAppSelector(selectUserCoins);
+  const userCoins   = useAppSelector(selectUserCoins);
+  const downloadMap = useAppSelector(s => s.download.games);
 
-  const [searchQuery, setSearchQuery] = useState('');
-  const [refreshing, setRefreshing] = useState(false);
-  const [activeGames, setActiveGames] = useState<Game[]>(GAMES);
+  const [searchQuery,   setSearchQuery]   = useState('');
+  const [refreshing,    setRefreshing]    = useState(false);
+  const [activeTab,     setActiveTab]     = useState<GameHubCategory>('popular');
 
-  const displayName = userProfile?.name?.split(' ')[0] || 'Player';
-  const userInitials = (userProfile?.name || 'Player')
-    .split(' ')
-    .map(p => p[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
+  const displayName  = userProfile?.name?.split(' ')[0] || 'Player';
+  const userInitials = (userProfile?.name || 'P')
+    .split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase();
 
-  const loadData = useCallback(async () => {
-    try {
-      const [profileData, gamesData] = await Promise.all([
-        userService.getProfile().catch(() => null),
-        gameService.getGames().catch(() => GAMES),
-      ]);
+  // ─── Bootstrap ─────────────────────────────────────────────────────────────
 
-      if (profileData) {
-        dispatch(fetchProfileSuccess(profileData));
-      }
-      if (gamesData && gamesData.length > 0) {
-        setActiveGames(gamesData);
-      }
-    } catch {
-      // Keep existing state
-    }
+  const initAssetStates = useCallback(async () => {
+    const modules = GameRegistry.getAllModules();
+    await Promise.all(
+      modules.map(async m => {
+        const state = await GameDownloadManager.getGameStatus(m.gameId);
+        const progress = await GameDownloadManager.getDownloadProgress(m.gameId);
+        dispatch(setGameAssetState({ gameId: m.gameId, assetState: state }));
+        if (state === GameAssetState.DOWNLOADING) {
+          dispatch(setGameDownloadProgress({ gameId: m.gameId, progress }));
+        }
+      }),
+    );
   }, [dispatch]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    GameAnalytics.trackHubViewed();
+    initAssetStates();
+
+    // Listen for download progress updates
+    const unsub = GameDownloadManager.addProgressListener((gameId, progress, state) => {
+      dispatch(setGameDownloadProgress({ gameId, progress }));
+      dispatch(setGameAssetState({ gameId, assetState: state }));
+    });
+    return unsub;
+  }, [dispatch, initAssetStates]);
+
+  const loadProfile = useCallback(async () => {
+    try {
+      const profileData = await userService.getProfile().catch(() => null);
+      if (profileData) dispatch(fetchProfileSuccess(profileData));
+    } catch { /* keep existing state */ }
+  }, [dispatch]);
+
+  useEffect(() => { loadProfile(); }, [loadProfile]);
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    await loadProfile();
+    await initAssetStates();
     setRefreshing(false);
   };
 
-  // useCallback: handleOpenGame sirf tab naya function banayega jab activeGames ya dispatch change ho
-  const handleOpenGame = useCallback((card: GameCardMeta) => {
-    const matchedGame = activeGames.find(g => g.id === card.id) || {
-      id: card.id,
-      name: card.name,
-      description: card.tag,
-      icon: '',
-      banner: '',
-      minPlayers: 2,
-      maxPlayers: 4,
-      estimatedDuration: '15m',
-      modes: ['classic', 'quick'],
-      isActive: true,
-      isFeatured: false,
-      category: 'board' as const,
-    };
+  // ─── Game Modules (filtered by tab + search) ────────────────────────────────
 
-    dispatch(selectGame(matchedGame));
-
-    if (navigation.navigate) {
-      try {
-        navigation.navigate('Game', { screen: card.route });
-      } catch {
-        try {
-          navigation.navigate(card.route);
-        } catch {
-          navigation.navigate('Game', { screen: 'LudoHome' });
-        }
-      }
-    }
-  }, [activeGames, dispatch, navigation]);
-
-  // useMemo: filteredCards sirf tab recalculate hoga jab searchQuery change ho
-  const filteredCards = useMemo(
-    () =>
-      GAME_CARDS.filter(card =>
-        card.name.toLowerCase().includes(searchQuery.trim().toLowerCase()),
-      ),
-    [searchQuery],
+  const tabModules = useMemo(() =>
+    GameRegistry.getModulesByHubCategory(activeTab),
+    [activeTab],
   );
 
+  const filteredModules = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return tabModules;
+    return GameRegistry.getAllModules().filter(m =>
+      m.gameName.toLowerCase().includes(q) ||
+      m.description.toLowerCase().includes(q),
+    );
+  }, [searchQuery, tabModules]);
+
+  // ─── Actions ───────────────────────────────────────────────────────────────
+
+  const handleOpenGame = useCallback((gameModule: GameModule) => {
+    const state = downloadMap[gameModule.gameId]?.state ?? GameAssetState.READY;
+    if (state !== GameAssetState.READY) return;
+
+    // Build a Game object for the Redux game slice
+    const game: Game = {
+      id: gameModule.gameId,
+      name: gameModule.gameName,
+      description: gameModule.description,
+      icon: gameModule.icon,
+      banner: '',
+      minPlayers: gameModule.minPlayers,
+      maxPlayers: gameModule.maxPlayers,
+      estimatedDuration: '15–30 min',
+      modes: ['classic', 'quick', 'private'],
+      isActive: true,
+      isFeatured: false,
+      category: gameModule.category as any,
+    };
+    dispatch(selectGame(game));
+    GameAnalytics.trackGameOpened(gameModule.gameId);
+    gameModule.launchGame(navigation);
+  }, [downloadMap, dispatch, navigation]);
+
+  const handleDownload = useCallback(async (gameId: GameId) => {
+    GameAnalytics.trackGameDownloadStarted(gameId);
+    try {
+      await GameDownloadManager.downloadGame(gameId);
+      GameAnalytics.trackGameDownloadCompleted(gameId, 0);
+    } catch {
+      GameAnalytics.trackGameDownloadFailed(gameId, 'unknown');
+    }
+  }, []);
+
+  const handleTabPress = useCallback((tab: GameHubCategory) => {
+    setActiveTab(tab);
+    GameAnalytics.trackCategorySelected(tab);
+  }, []);
+
+  // ─── Render ────────────────────────────────────────────────────────────────
+
+  const bg = isDark ? '#171B20' : '#F8F2E2';
+
   return (
-    <View style={[styles.container, { backgroundColor: isDark ? '#171B20' : '#F8F2E2' }]}>
+    <View style={[styles.container, { backgroundColor: bg }]}>
       <StatusBar barStyle="light-content" />
 
-      {/* Top App Bar with Deep Emerald Gradient */}
+      {/* ── Top App Bar ─────────────────────────────────────────────────────── */}
       <LinearGradient
-        colors={
-          isDark
-            ? ['#0F3628', '#0A2019', '#061611']
-            : ['#155A3F', '#0F4530', '#0B3323']
-        }
+        colors={isDark
+          ? ['#0F3628', '#0A2019', '#061611']
+          : ['#155A3F', '#0F4530', '#0B3323']}
         style={[styles.appBar, { paddingTop: Math.max(insets.top + 10, 28) }]}
       >
+        {/* Brand & Greeting */}
         <View style={styles.appBarRow}>
-          {/* Brand & Greeting */}
           <View style={styles.brandRow}>
-            <LinearGradient
-              colors={['#F0C64A', '#D4A017', '#A6740C']}
-              style={styles.brandMark}
-            >
+            <LinearGradient colors={['#F0C64A', '#D4A017', '#A6740C']} style={styles.brandMark}>
               <Text style={styles.brandIcon}>🎲</Text>
             </LinearGradient>
             <View>
@@ -223,39 +217,32 @@ export const GameHubScreen: React.FC = () => {
 
           {/* Right: Coin + Bell */}
           <View style={styles.appBarRight}>
-            {/* Coin Pill */}
             <View style={styles.coinPill}>
               <View style={styles.coinDot} />
-              <Text style={styles.coinText}>
-                {(userCoins || 2480).toLocaleString()}
-              </Text>
+              <Text style={styles.coinText}>{(userCoins || 2480).toLocaleString()}</Text>
             </View>
-
-            {/* Notification Bell */}
             <TouchableOpacity
               activeOpacity={0.8}
-              onPress={() => {
-                try { navigation.navigate('Notifications' as never); } catch { /* ignore */ }
-              }}
+              onPress={() => { try { navigation.navigate('Notifications' as never); } catch {} }}
               style={styles.bellBtn}
             >
               <Text style={styles.bellIcon}>🔔</Text>
-              {/* Unread dot */}
               <View style={styles.bellDot} />
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Search Row & Avatar Button */}
+        {/* Search Row & Avatar */}
         <View style={styles.searchRow}>
           <View style={styles.searchBox}>
             <Text style={styles.searchIcon}>🔍</Text>
             <TextInput
-              placeholder="Search games or friends…"
-              placeholderTextColor="rgba(255, 255, 255, 0.65)"
+              placeholder="Search games…"
+              placeholderTextColor="rgba(255,255,255,0.65)"
               value={searchQuery}
               onChangeText={setSearchQuery}
               style={styles.searchInput}
+              returnKeyType="search"
             />
             {searchQuery ? (
               <TouchableOpacity onPress={() => setSearchQuery('')}>
@@ -263,29 +250,18 @@ export const GameHubScreen: React.FC = () => {
               </TouchableOpacity>
             ) : null}
           </View>
-
-          {/* User Avatar Circle */}
           <TouchableOpacity
             activeOpacity={0.8}
-            onPress={() => {
-              try {
-                navigation.navigate('Profile');
-              } catch {
-                // Ignore fallback
-              }
-            }}
+            onPress={() => { try { navigation.navigate('Profile'); } catch {} }}
           >
-            <LinearGradient
-              colors={['#E6483A', '#A52418']}
-              style={styles.avatarBtn}
-            >
+            <LinearGradient colors={['#E6483A', '#A52418']} style={styles.avatarBtn}>
               <Text style={styles.avatarBtnText}>{userInitials}</Text>
             </LinearGradient>
           </TouchableOpacity>
         </View>
       </LinearGradient>
 
-      {/* Main Body */}
+      {/* ── Body ───────────────────────────────────────────────────────────── */}
       <ScrollView
         contentContainerStyle={[styles.scrollBody, { paddingBottom: Math.max(insets.bottom + 20, 32) }]}
         showsVerticalScrollIndicator={false}
@@ -301,121 +277,119 @@ export const GameHubScreen: React.FC = () => {
         {/* Daily Bonus Banner */}
         <LinearGradient
           colors={['#183021', '#102017']}
-          style={[
-            styles.bannerCard,
-            { borderColor: isDark ? 'rgba(212, 160, 23, 0.3)' : 'rgba(212, 160, 23, 0.2)' },
-          ]}
+          style={[styles.bannerCard, { borderColor: isDark ? 'rgba(212,160,23,0.3)' : 'rgba(212,160,23,0.2)' }]}
         >
           <View style={styles.bannerLeft}>
             <Text style={styles.bannerBadge}>🎁 DAILY REWARD</Text>
             <Text style={styles.bannerTitle}>Claim 250 Free Coins</Text>
-            <Text style={styles.bannerSub}>Spin the daily lucky wheel & win big</Text>
+            <Text style={styles.bannerSub}>Spin the lucky wheel & win big</Text>
           </View>
           <TouchableOpacity activeOpacity={0.8} style={styles.claimBtn}>
-            <LinearGradient
-              colors={['#F0C64A', '#D4A017']}
-              style={styles.claimBtnGradient}
-            >
+            <LinearGradient colors={['#F0C64A', '#D4A017']} style={styles.claimBtnGradient}>
               <Text style={styles.claimBtnText}>Claim</Text>
             </LinearGradient>
           </TouchableOpacity>
         </LinearGradient>
 
-        {/* Section Header: Choose a game */}
-        <View style={styles.sectionHeader}>
-          <Text
-            style={[
-              styles.sectionTitle,
-              { color: isDark ? '#F1F4F7' : '#241C15' },
-            ]}
-          >
-            Choose a game
-          </Text>
-          <TouchableOpacity>
-            <Text style={[styles.sectionLink, { color: theme.colors.accentLight || '#D4A017' }]}>
-              See all
+        {/* ── Category Tabs ─────────────────────────────────────────────────── */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabsScroll}
+          style={styles.tabsContainer}
+        >
+          {HUB_TABS.map(tab => {
+            const isActive = activeTab === tab.key;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                activeOpacity={0.8}
+                onPress={() => handleTabPress(tab.key)}
+                style={[
+                  styles.tabChip,
+                  isActive && styles.tabChipActive,
+                ]}
+              >
+                {isActive && (
+                  <LinearGradient
+                    colors={['#1F9D55', '#155A3F']}
+                    style={StyleSheet.absoluteFill}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                  />
+                )}
+                <Text style={styles.tabEmoji}>{tab.emoji}</Text>
+                <Text style={[styles.tabLabel, isActive && styles.tabLabelActive]}>
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        {/* ── Game Grid (Registry-driven) ───────────────────────────────────── */}
+        {filteredModules.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyEmoji}>🔍</Text>
+            <Text style={[styles.emptyText, { color: isDark ? '#96A1AD' : '#6B6154' }]}>
+              No games found for "{searchQuery}"
             </Text>
-          </TouchableOpacity>
-        </View>
+          </View>
+        ) : (
+          <View style={styles.gameGrid}>
+            {filteredModules.map(m => {
+              const entry   = downloadMap[m.gameId];
+              const state   = entry?.state    ?? GameAssetState.READY;
+              const progress= entry?.progress ?? 100;
+              const cardMeta: GameCardMeta = {
+                id: m.gameId,
+                name: m.gameName,
+                glyph: m.icon,
+                tag: m.playerTag,
+                onlineCount: m.onlineCountLabel,
+                gradient: [m.cardGradient[0], m.cardGradient[1]],
+                route: '',
+              };
+              return (
+                <GameCard
+                  key={m.gameId}
+                  module={m}
+                  card={cardMeta}
+                  assetState={state}
+                  downloadProgress={progress}
+                  onPress={() => handleOpenGame(m)}
+                  onDownloadPress={() => handleDownload(m.gameId as GameId)}
+                />
+              );
+            })}
+          </View>
+        )}
 
-        {/* 2-Column Game Grid — GameCard is memoized, sirf changed cards re-render honge */}
-        <View style={styles.gameGrid}>
-          {filteredCards.map(card => (
-            <GameCard
-              key={card.id}
-              card={card}
-              onPress={handleOpenGame}
-            />
-          ))}
-        </View>
-
-        {/* Section Header: Friends Online */}
+        {/* ── Friends Online ────────────────────────────────────────────────── */}
         <View style={styles.sectionHeader}>
-          <Text
-            style={[
-              styles.sectionTitle,
-              { color: isDark ? '#F1F4F7' : '#241C15' },
-            ]}
-          >
+          <Text style={[styles.sectionTitle, { color: isDark ? '#F1F4F7' : '#241C15' }]}>
             Friends online
           </Text>
-          <TouchableOpacity
-            onPress={() => {
-              try {
-                navigation.navigate('Friends');
-              } catch {
-                // Ignore fallback
-              }
-            }}
-          >
+          <TouchableOpacity onPress={() => { try { navigation.navigate('Friends'); } catch {} }}>
             <Text style={[styles.sectionLink, { color: theme.colors.accentLight || '#D4A017' }]}>
               Invite
             </Text>
           </TouchableOpacity>
         </View>
 
-        {/* Friends Horizontal Scroll */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.friendsScroll}
-        >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.friendsScroll}>
           {SAMPLE_FRIENDS.map(friend => (
-            <TouchableOpacity
-              key={friend.id}
-              activeOpacity={0.8}
-              style={styles.friendCard}
-            >
+            <TouchableOpacity key={friend.id} activeOpacity={0.8} style={styles.friendCard}>
               <View style={styles.friendAvatarContainer}>
-                <LinearGradient
-                  colors={['#F0C64A', '#D4A017']}
-                  style={styles.friendAvatar}
-                >
+                <LinearGradient colors={['#F0C64A', '#D4A017']} style={styles.friendAvatar}>
                   <Text style={styles.friendAvatarText}>{friend.initials}</Text>
                 </LinearGradient>
-                <View
-                  style={[
-                    styles.onlineDot,
-                    { borderColor: isDark ? '#171B20' : '#F8F2E2' },
-                  ]}
-                />
+                <View style={[styles.onlineDot, { borderColor: bg }]} />
               </View>
-              <Text
-                style={[
-                  styles.friendName,
-                  { color: isDark ? '#F1F4F7' : '#241C15' },
-                ]}
-                numberOfLines={1}
-              >
+              <Text style={[styles.friendName, { color: isDark ? '#F1F4F7' : '#241C15' }]} numberOfLines={1}>
                 {friend.name}
               </Text>
-              <Text
-                style={[
-                  styles.friendStatus,
-                  { color: isDark ? '#96A1AD' : '#6B6154' },
-                ]}
-                numberOfLines={1}
-              >
+              <Text style={[styles.friendStatus, { color: isDark ? '#96A1AD' : '#6B6154' }]} numberOfLines={1}>
                 {friend.status}
               </Text>
             </TouchableOpacity>
@@ -426,10 +400,12 @@ export const GameHubScreen: React.FC = () => {
   );
 };
 
+// ─── Styles ───────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1 },
+
+  // App Bar
   appBar: {
     paddingHorizontal: 18,
     paddingBottom: 18,
@@ -447,340 +423,143 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 14,
   },
-  brandRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
+  brandRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   brandMark: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#D4A017',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
+    width: 40, height: 40, borderRadius: 12,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#D4A017', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4, shadowRadius: 8, elevation: 4,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)',
   },
-  brandIcon: {
-    fontSize: 20,
-  },
-  greetingTitle: {
-    fontSize: 18,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    letterSpacing: 0.2,
-  },
-  greetingSub: {
-    fontSize: 11.5,
-    color: '#BCD8C8',
-    fontWeight: '500',
-  },
-  appBarRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
+  brandIcon: { fontSize: 20 },
+  greetingTitle: { fontSize: 18, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.2 },
+  greetingSub: { fontSize: 11.5, color: '#BCD8C8', fontWeight: '500' },
+  appBarRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   coinPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(212, 160, 23, 0.3)',
-    gap: 6,
-  },
-  bellBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
-    position: 'relative',
-  },
-  bellIcon: {
-    fontSize: 18,
-  },
-  bellDot: {
-    position: 'absolute',
-    top: 6,
-    right: 6,
-    width: 9,
-    height: 9,
-    borderRadius: 4.5,
-    backgroundColor: '#E6483A',
-    borderWidth: 1.5,
-    borderColor: 'rgba(15, 54, 40, 0.9)',
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: 20, borderWidth: 1,
+    borderColor: 'rgba(212,160,23,0.3)', gap: 6,
   },
   coinDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: '#F0C64A',
-    shadowColor: '#F0C64A',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
+    width: 12, height: 12, borderRadius: 6, backgroundColor: '#F0C64A',
+    shadowColor: '#F0C64A', shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8, shadowRadius: 4,
   },
-  coinText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '700',
+  coinText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  bellBtn: {
+    width: 38, height: 38, borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)',
+    position: 'relative',
   },
-  searchRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+  bellIcon: { fontSize: 18 },
+  bellDot: {
+    position: 'absolute', top: 6, right: 6,
+    width: 9, height: 9, borderRadius: 4.5,
+    backgroundColor: '#E6483A', borderWidth: 1.5,
+    borderColor: 'rgba(15,54,40,0.9)',
   },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   searchBox: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.14)',
-    borderRadius: 14,
-    paddingHorizontal: 12,
-    height: 44,
+    flex: 1, flexDirection: 'row', alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderRadius: 14, paddingHorizontal: 12, height: 44,
   },
-  searchIcon: {
-    fontSize: 14,
-    marginRight: 8,
-  },
-  searchInput: {
-    flex: 1,
-    color: '#FFFFFF',
-    fontSize: 13.5,
-    fontWeight: '500',
-    paddingVertical: 0,
-  },
-  clearSearchText: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 14,
-    paddingHorizontal: 4,
-  },
+  searchIcon: { fontSize: 14, marginRight: 8 },
+  searchInput: { flex: 1, color: '#FFFFFF', fontSize: 13.5, fontWeight: '500', paddingVertical: 0 },
+  clearSearchText: { color: 'rgba(255,255,255,0.7)', fontSize: 14, paddingHorizontal: 4 },
   avatarBtn: {
-    width: 42,
-    height: 42,
-    borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 3,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    width: 42, height: 42, borderRadius: 13,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3, shadowRadius: 6, elevation: 3,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)',
   },
-  avatarBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '800',
-  },
-  scrollBody: {
-    padding: 18,
-  },
+  avatarBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+
+  // Body
+  scrollBody: { padding: 18 },
+
+  // Banner
   bannerCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'row', alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
-    borderRadius: 18,
-    borderWidth: 1,
+    padding: 16, borderRadius: 18, borderWidth: 1,
     marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.2, shadowRadius: 8, elevation: 3,
   },
-  bannerLeft: {
-    flex: 1,
-    marginRight: 10,
-  },
-  bannerBadge: {
-    color: '#F0C64A',
-    fontSize: 10.5,
-    fontWeight: '800',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  bannerTitle: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '800',
-    marginBottom: 2,
-  },
-  bannerSub: {
-    color: '#BCD8C8',
-    fontSize: 11.5,
-  },
+  bannerLeft: { flex: 1, marginRight: 10 },
+  bannerBadge: { color: '#F0C64A', fontSize: 10.5, fontWeight: '800', letterSpacing: 0.5, marginBottom: 4 },
+  bannerTitle: { color: '#FFFFFF', fontSize: 15, fontWeight: '800', marginBottom: 2 },
+  bannerSub: { color: '#BCD8C8', fontSize: 11.5 },
   claimBtn: {
-    borderRadius: 12,
-    overflow: 'hidden',
-    shadowColor: '#D4A017',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 3,
+    borderRadius: 12, overflow: 'hidden',
+    shadowColor: '#D4A017', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3, shadowRadius: 6, elevation: 3,
   },
   claimBtnGradient: {
-    paddingVertical: 9,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingVertical: 9, paddingHorizontal: 16,
+    alignItems: 'center', justifyContent: 'center',
   },
-  claimBtnText: {
-    color: '#2B1C04',
-    fontSize: 13,
-    fontWeight: '800',
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-    marginTop: 4,
-  },
-  sectionTitle: {
-    fontSize: 15,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-  sectionLink: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  gameGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 14,
-    marginBottom: 24,
-  },
-  tileWrapper: {
-    width: TILE_WIDTH,
-    height: 154,
-    borderRadius: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  tile: {
-    flex: 1,
-    borderRadius: 20,
-    padding: 14,
-    justifyContent: 'space-between',
-    position: 'relative',
+  claimBtnText: { color: '#2B1C04', fontSize: 13, fontWeight: '800' },
+
+  // Category Tabs
+  tabsContainer: { marginBottom: 16 },
+  tabsScroll: { gap: 8, paddingRight: 4 },
+  tabChip: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingVertical: 8, paddingHorizontal: 14,
+    borderRadius: 20, gap: 5,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
-  tileLiveBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    alignSelf: 'flex-end',
-    paddingVertical: 3.5,
-    paddingHorizontal: 7,
-    borderRadius: 8,
-    gap: 4,
+  tabChipActive: {
+    borderColor: 'rgba(31,157,85,0.6)',
   },
-  pulseDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#5CF27A',
+  tabEmoji: { fontSize: 14 },
+  tabLabel: { fontSize: 13, fontWeight: '600', color: 'rgba(255,255,255,0.55)' },
+  tabLabelActive: { color: '#FFFFFF', fontWeight: '800' },
+
+  // Game Grid
+  gameGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginBottom: 24 },
+
+  // Empty State
+  emptyState: { alignItems: 'center', paddingVertical: 40 },
+  emptyEmoji: { fontSize: 40, marginBottom: 12 },
+  emptyText: { fontSize: 14, fontWeight: '500', textAlign: 'center' },
+
+  // Section Header
+  sectionHeader: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12, marginTop: 4,
   },
-  tileLiveText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  tileGlyph: {
-    position: 'absolute',
-    right: 4,
-    bottom: -6,
-    fontSize: 68,
-    opacity: 0.2,
-    transform: [{ rotate: '-8deg' }],
-  },
-  tileBottom: {
-    zIndex: 2,
-  },
-  tileTitle: {
-    color: '#FFFFFF',
-    fontSize: 17,
-    fontWeight: '800',
-    letterSpacing: 0.2,
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  tileTag: {
-    color: 'rgba(255, 255, 255, 0.85)',
-    fontSize: 11.5,
-    marginTop: 2,
-    fontWeight: '500',
-  },
-  friendsScroll: {
-    gap: 12,
-    paddingBottom: 8,
-  },
-  friendCard: {
-    width: 86,
-    alignItems: 'center',
-  },
-  friendAvatarContainer: {
-    position: 'relative',
-    marginBottom: 6,
-  },
+  sectionTitle: { fontSize: 15, fontWeight: '700', letterSpacing: 0.2 },
+  sectionLink: { fontSize: 13, fontWeight: '700' },
+
+  // Friends
+  friendsScroll: { gap: 12, paddingBottom: 8 },
+  friendCard: { width: 86, alignItems: 'center' },
+  friendAvatarContainer: { position: 'relative', marginBottom: 6 },
   friendAvatar: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
-    elevation: 3,
+    width: 54, height: 54, borderRadius: 27,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25, shadowRadius: 6, elevation: 3,
   },
-  friendAvatarText: {
-    color: '#3A2705',
-    fontSize: 16,
-    fontWeight: '800',
-  },
+  friendAvatarText: { color: '#3A2705', fontSize: 16, fontWeight: '800' },
   onlineDot: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: '#4BD07A',
-    borderWidth: 2.5,
+    position: 'absolute', bottom: 0, right: 0,
+    width: 14, height: 14, borderRadius: 7,
+    backgroundColor: '#4BD07A', borderWidth: 2.5,
   },
-  friendName: {
-    fontSize: 12,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  friendStatus: {
-    fontSize: 10,
-    textAlign: 'center',
-    marginTop: 1,
-  },
+  friendName: { fontSize: 12, fontWeight: '700', textAlign: 'center' },
+  friendStatus: { fontSize: 10, textAlign: 'center', marginTop: 1 },
 });
 
 export default GameHubScreen;

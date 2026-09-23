@@ -59,9 +59,10 @@ export type GameStackParamList = {
 
   // Chidiya Udd
   ChidiyaHome: undefined;
-  ChidiyaLobby: { lobbyId?: string; isHost: boolean };
-  ChidiyaGame: { matchId: string };
-  ChidiyaResult: { matchId: string };
+  ChidiyaMode: undefined;
+  ChidiyaLobby: { lobbyId?: string; roomId?: string; isHost?: boolean; mode?: 'quick' | 'private' };
+  ChidiyaGame: { matchId?: string; roomId?: string };
+  ChidiyaResult: { matchId?: string; won?: boolean; score?: number };
 
   // Esto
   EstoHome: undefined;

@@ -28,13 +28,25 @@ export const SOCKET_EVENTS = {
   GAME_START: 'game:start',
   GAME_STATE: 'game:state',
   GAME_MOVE: 'game:move',
+  GAME_ACTION: 'game:action',
   GAME_TURN: 'game:turn',
   GAME_OVER: 'game:over',
   GAME_END: 'game:end',
+  GAME_RESULT: 'game:result',
   GAME_PAUSE: 'game:pause',
   GAME_RESUME: 'game:resume',
   GAME_TIMEOUT: 'game:timeout',
   GAME_EMOTE: 'game:emote',
+
+  // Room (MultiplayerService)
+  ROOM_CREATE: 'room:create',
+  ROOM_CREATED: 'room:created',
+  ROOM_JOIN: 'room:join',
+  ROOM_JOINED: 'room:joined',
+  ROOM_LEAVE: 'room:leave',
+  ROOM_STATUS: 'room:status',
+  ROOM_INVITE: 'room:invite',
+  RECONNECT_SNAPSHOT: 'reconnect:snapshot',
 
   // Player
   PLAYER_JOIN: 'player:joined',

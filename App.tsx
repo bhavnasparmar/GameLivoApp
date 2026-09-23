@@ -17,6 +17,14 @@ import { store, AppDispatch } from './src/redux/store';
 import { ThemeProvider, useTheme } from './src/theme/index';
 import RootNavigator from './src/navigation/RootNavigator';
 import { navigationRef } from './src/navigation/navigationRef';
+import { bootstrapGameRegistry } from './src/core/registry/index';
+import { GameDownloadManager } from './src/core/download/GameDownloadManager';
+import { initGamesAssetState } from './src/redux/slices/downloadSlice';
+import { GameAssetState } from './src/types/gameModule';
+import { GameId } from './src/types/game';
+
+// Bootstrap the registry immediately (sync) so it's ready before any screen renders
+bootstrapGameRegistry();
 
 // ─── Inner App (access to theme + dispatch) ────────────────────────────────
 
@@ -25,9 +33,16 @@ const AppInner: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
 
   useEffect(() => {
-    // Initialize socket when app loads (after login, socket connects)
-    // socketManager.initialize(dispatch);
-    // return () => socketManager.teardown();
+    // Mark Phase 1 bundled games as READY (they're shipped with the app)
+    const BUNDLED_GAMES: GameId[] = ['ludo', 'chess', 'uno', 'chidiyaUdd'];
+    const initialStates = BUNDLED_GAMES.reduce((acc, id) => {
+      acc[id] = GameAssetState.READY;
+      return acc;
+    }, {} as Record<GameId, GameAssetState>);
+    dispatch(initGamesAssetState(initialStates));
+
+    // Also persist to AsyncStorage for future launches
+    BUNDLED_GAMES.forEach(id => GameDownloadManager.markBundledAsReady(id));
   }, [dispatch]);
 
   return (

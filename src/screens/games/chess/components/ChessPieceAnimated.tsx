@@ -39,7 +39,7 @@ export const ChessPieceAnimated: React.FC<ChessPieceAnimatedProps> = React.memo(
     onCapturedComplete,
   }) => {
     const pieceImage = CHESS_PIECE_IMAGES[piece.color]?.[piece.type];
-    const pieceDisplaySize = size || squareSize * 0.9;
+    const pieceDisplaySize = size || squareSize * 0.98;
 
     // Calculate starting offsets if this piece just moved
     const hasMoveData =

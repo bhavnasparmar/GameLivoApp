@@ -11,7 +11,7 @@ interface ChessPieceViewProps {
 }
 
 export const ChessPieceView: React.FC<ChessPieceViewProps> = React.memo(
-  ({ piece, size = 38, isSelected = false }) => {
+  ({ piece, size = 44, isSelected = false }) => {
     const pieceImage = CHESS_PIECE_IMAGES[piece.color]?.[piece.type];
 
     if (!pieceImage) return null;
@@ -26,7 +26,7 @@ export const ChessPieceView: React.FC<ChessPieceViewProps> = React.memo(
       >
         <FastImage
           source={pieceImage}
-          style={[styles.pieceImg, { width: size * 0.9, height: size * 0.9 }] as any}
+          style={[styles.pieceImg, { width: size * 0.98, height: size * 0.98 }] as any}
           resizeMode={FastImage.resizeMode.contain}
         />
       </View>

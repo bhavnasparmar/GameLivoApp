@@ -176,8 +176,8 @@ export const ChessBoardView: React.FC<ChessBoardViewProps> = React.memo(
     const { width, height } = useWindowDimensions();
     const theme = BOARD_THEMES[themeKey] || BOARD_THEMES.woodEmerald;
 
-    // Responsive square calculation (8 squares exactly fit boardTotalSize)
-    const maxAvailableWidth = Math.min(width - 16, height * 0.52);
+    // Responsive square calculation (maximized board size with sleek edge margins)
+    const maxAvailableWidth = Math.min(width - 4, height * 0.58);
     const squareSize = Math.floor(maxAvailableWidth / 8);
     const boardTotalSize = squareSize * 8;
 
@@ -530,8 +530,8 @@ const styles = StyleSheet.create({
   coordRank: {
     position: 'absolute',
     top: 2,
-    left: 3,
-    fontSize: 9,
+    left: 2.5,
+    fontSize: 9.5,
     fontWeight: '800',
     opacity: 0.85,
     zIndex: 5,
@@ -539,8 +539,8 @@ const styles = StyleSheet.create({
   coordFile: {
     position: 'absolute',
     bottom: 1.5,
-    right: 3,
-    fontSize: 9,
+    right: 2.5,
+    fontSize: 9.5,
     fontWeight: '800',
     opacity: 0.85,
     zIndex: 5,
